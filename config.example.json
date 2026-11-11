@@ -1,0 +1,12 @@
+{
+  "ffmpeg": "ffmpeg",
+  "oneasr_cli": "",
+  "oneasr_data_root": "",
+  "inbox_dir": "./inbox",
+  "output_dir": "./output",
+  "work_dir": "./work",
+  "language": "zh",
+  "asr_model": "0.6b",
+  "aligner": "ctc",
+  "port": 8765
+}

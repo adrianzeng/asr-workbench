@@ -1,0 +1,4 @@
+# ASR Workbench has no third-party Python dependencies.
+# The backend uses only the Python 3.12+ standard library.
+# External binaries (ffmpeg, OneAsr CLI) are configured in config.json,
+# not installed as Python packages.

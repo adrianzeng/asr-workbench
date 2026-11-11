@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASR Workbench</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="dot"></span>ASR Workbench</div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="work">工作台</button>
+    <button class="tab" data-tab="settings">设置</button>
+  </nav>
+  <div id="envBadge" class="badge">检查环境中…</div>
+</header>
+
+<main>
+  <section id="tab-work" class="page">
+    <div class="grid">
+      <section class="panel">
+        <h2>① 进件</h2>
+        <p class="hint">把音视频放进 <code id="inboxHint">inbox/</code>，刷新后选中一个。</p>
+        <div class="row"><button id="refreshBtn" class="btn ghost">刷新列表</button></div>
+        <div id="fileList" class="filelist"><div class="empty">加载中…</div></div>
+        <button id="runBtn" class="btn primary" disabled>开始转写</button>
+        <div id="progress" class="progress"></div>
+      </section>
+
+      <section class="panel">
+        <h2>② 草稿 ↔ 成稿</h2>
+        <div class="pair">
+          <div class="pane">
+            <div class="pane-head">带时间轴的草稿 <span>SRT</span></div>
+            <pre id="srtBox" class="box">尚未转写</pre>
+          </div>
+          <div class="pane">
+            <div class="pane-head">成稿 <span>TXT</span></div>
+            <pre id="txtBox" class="box">尚未转写</pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>③ 出口</h2>
+        <p class="hint">产物写在配置的输出目录里，默认是项目自己的 output/。</p>
+        <div class="kv"><span>SRT</span><code id="srtPath">—</code></div>
+        <div class="kv"><span>TXT</span><code id="txtPath">—</code></div>
+        <div class="kv"><span>耗时</span><code id="elapsed">—</code></div>
+        <button id="copyBtn" class="btn ghost" disabled>复制成稿</button>
+      </section>
+    </div>
+
+    <div class="assistant-bar">
+      <span class="pill">第二阶段</span>
+      <span>语音助手（麦克风输入 / 朗读回答）尚未启用</span>
+    </div>
+  </section>
+
+  <section id="tab-settings" class="page hidden">
+    <div class="settings">
+      <h2>环境配置</h2>
+      <p class="hint">路径都在这里设置，代码里不含任何固定路径。首次使用请看 README 第 3 节。</p>
+
+      <label>ffmpeg<input id="cfg_ffmpeg" type="text" placeholder="ffmpeg 或完整路径"></label>
+      <label>OneAsr CLI<input id="cfg_oneasr_cli" type="text" placeholder="oneasr-cli.exe 的完整路径"></label>
+      <label>OneAsr data-root<input id="cfg_oneasr_data_root" type="text" placeholder="留空则用 OneAsr 默认"></label>
+      <label>输入目录<input id="cfg_inbox_dir" type="text"></label>
+      <label>输出目录<input id="cfg_output_dir" type="text"></label>
+      <label>中间目录<input id="cfg_work_dir" type="text"></label>
+
+      <div class="form-row">
+        <label>语言<input id="cfg_language" type="text"></label>
+        <label>ASR 模型<input id="cfg_asr_model" type="text"></label>
+        <label>对齐器<input id="cfg_aligner" type="text"></label>
+        <label>端口<input id="cfg_port" type="number"></label>
+      </div>
+
+      <div class="row">
+        <button id="saveBtn" class="btn primary">保存配置</button>
+        <button id="checkBtn" class="btn ghost">检查环境</button>
+      </div>
+      <div id="statusBox" class="statusbox"></div>
+    </div>
+  </section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

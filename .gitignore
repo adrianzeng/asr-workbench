@@ -1,0 +1,25 @@
+# Local configuration may contain absolute paths on your machine.
+config.json
+
+# Runtime data: user media, transcripts and intermediate audio.
+inbox/*
+output/*
+work/*
+!inbox/.gitkeep
+!output/.gitkeep
+!work/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
