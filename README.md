@@ -181,7 +181,12 @@ OneAsr 在部分 Windows 环境下，由自身进程启动 ffmpeg 子进程会�
 
 **转写结果没有标点** — 检查 `language` 是否与素材语言一致；粤语素材要选 `yue` 而不是 `zh`。
 
-**后端报 `WinError 5` / `os error 5`** — 少数沙箱、CI 或受限终端会禁止服务进程再派生子进程。改用系统自带的普通终端（PowerShell / Windows Terminal / CMD）启动 `python server.py` 即可；本项目在普通终端下能正常调用 ffmpeg 与 OneAsr CLI。
+**后端报 `WinError 5` / `os error 5`** — 少数沙箱、CI 或受限终端会禁止服务进程再派生子进程（报错落在 `subprocess.run` 的 `CreateProcess`）。优先改用系统自带的普通终端启动 `python server.py`；若仍受限，可用下面两种已验证的等价方式：
+
+```bash
+python -c "import server; server.main()"                              # 起服务
+python -c "import server; server.transcribe(server.load_config(), 'demo.mp4')"   # 直接转写一次
+```
 
 ---
 

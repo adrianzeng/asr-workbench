@@ -244,7 +244,9 @@ def main():
         try:
             result = transcribe(cfg, sys.argv[2])
         except Exception as exc:
-            print(f"转写失败：{exc}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            print(f"转写失败：{type(exc).__name__}: {exc}", file=sys.stderr)
             sys.exit(1)
         print(f"完成：{result['srt_path']}  /  {result['txt_path']}  ({result['elapsed']} 秒)")
         return
