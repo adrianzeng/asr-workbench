@@ -52,20 +52,26 @@
         <div class="block">
           <div class="block-title">识别设置</div>
           <div class="field-grid">
-            <label class="field"><span>识别后端</span>
+            <label class="field"><span>听写引擎</span>
+              <select id="cfg_asr_engine">
+                <option value="local">本地模型（默认，不上传）</option>
+                <option value="cloud">云端 API（上传音频）</option>
+              </select>
+            </label>
+            <label class="field local-only"><span>识别后端</span>
               <select id="cfg_backend">
                 <option value="auto">自动（有显卡用显卡）</option>
                 <option value="cpu">仅 CPU（普通笔记本）</option>
                 <option value="gpu">仅 GPU</option>
               </select>
             </label>
-            <label class="field"><span>听写模型</span>
+            <label class="field local-only"><span>听写模型</span>
               <select id="cfg_asr_model">
                 <option value="0.6b">0.6B（轻，CPU 可跑）</option>
                 <option value="1.7b">1.7B（更准，吃资源）</option>
               </select>
             </label>
-            <label class="field"><span>语言</span>
+            <label class="field local-only"><span>语言</span>
               <select id="cfg_language">
                 <option value="zh">中文普通话</option>
                 <option value="yue">粤语</option>
@@ -74,12 +80,31 @@
                 <option value="ko">한국어</option>
               </select>
             </label>
-            <label class="field"><span>对齐器</span>
+            <label class="field local-only"><span>对齐器</span>
               <select id="cfg_aligner">
                 <option value="ctc">CTC（默认）</option>
                 <option value="qwen">Qwen</option>
               </select>
             </label>
+          </div>
+          <div id="cloudBlock" class="cloud-block hidden">
+            <div class="cloud-warn">已选云端引擎：转写时会把<strong>整段音频</strong>发送到你在下面配置的服务，不会再走本地模型。请确认该服务是你信任的。</div>
+            <div class="field-grid">
+              <label class="field"><span>Base URL</span>
+                <input id="cfg_cloud_asr_base_url" type="text" placeholder="例：https://api.example.com/v1">
+              </label>
+              <label class="field"><span>模型名</span>
+                <input id="cfg_cloud_asr_model" type="text" placeholder="服务方提供的听写模型名">
+              </label>
+            </div>
+            <label class="field"><span>API Key</span>
+              <input id="cfg_cloud_asr_api_key" type="password" placeholder="仅存本机 config.json，不会出现在开源仓库">
+            </label>
+            <div class="field-row">
+              <button id="applyCloud" class="btn small">保存云端配置</button>
+              <span id="cloudState" class="field-hint">当前：未配置</span>
+            </div>
+            <p class="note">接口协议为 OpenAI 兼容的 <code>/audio/transcriptions</code>；若服务方不返回分段时间，SRT 会以「整段时间轴 + 全文」的形式如实输出。</p>
           </div>
         </div>
 
@@ -140,6 +165,7 @@
         <div class="block">
           <div class="block-title">本次产物</div>
           <div class="kv"><span>产物目录</span><code id="jobDir">—</code></div>
+          <div class="kv"><span>引擎</span><code id="engineInfo">—</code></div>
           <div class="kv"><span>SRT</span><code id="srtPath">—</code></div>
           <div class="kv"><span>TXT</span><code id="txtPath">—</code></div>
           <div class="kv"><span>耗时</span><code id="elapsed">—</code></div>
@@ -170,6 +196,42 @@
 
   <div class="assistant-bar"><span class="pill">第二阶段</span><span>语音助手（麦克风输入 / 朗读回答）尚未启用</span></div>
 </main>
+
+<button id="authorBtn" class="author-btn" title="关于作者">&#9432; 关于作者</button>
+<div id="authorModal" class="author-modal hidden">
+  <div class="author-card">
+    <button id="authorClose" class="author-close" title="关闭">&#10005;</button>
+    <div class="author-head">
+      <div class="author-avatar" id="authorAvatar">糕</div>
+      <div>
+        <div class="author-name" id="authorName">糕头</div>
+        <div class="author-tagline" id="authorTagline">AI × 自媒体 · 把工具做成普通人能用的样子</div>
+      </div>
+    </div>
+    <p class="author-bio" id="authorBio">一个用 AI 工具做自媒体的独立创作者。这个转写工作台是我自己日常在用的，开源出来希望帮刚开始做内容的你省点时间。</p>
+    <div class="author-links" id="authorLinks">
+      <div class="author-link"><span>微信</span><code id="authorWechat">demo-wechat-id</code></div>
+      <div class="author-link"><span>邮箱</span><code id="authorEmail">demo@example.com</code></div>
+      <div class="author-link"><span>主页</span><code id="authorSite">https://example.com</code></div>
+    </div>
+    <div class="author-qr">
+      <div class="qr-placeholder" id="authorQr">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <rect x="6" y="6" width="26" height="26" fill="none" stroke="currentColor" stroke-width="6"/>
+          <rect x="68" y="6" width="26" height="26" fill="none" stroke="currentColor" stroke-width="6"/>
+          <rect x="6" y="68" width="26" height="26" fill="none" stroke="currentColor" stroke-width="6"/>
+          <rect x="42" y="42" width="16" height="16" fill="currentColor"/>
+          <rect x="46" y="12" width="8" height="8" fill="currentColor"/>
+          <rect x="76" y="46" width="8" height="8" fill="currentColor"/>
+          <rect x="12" y="46" width="8" height="8" fill="currentColor"/>
+        </svg>
+        <span>二维码占位</span>
+      </div>
+      <p class="author-qr-note">扫码交流 / 获取使用教程</p>
+    </div>
+    <p class="author-demo-note">以上为演示数据：发布前请在 <code>web/app.js</code> 顶部的 AUTHOR_INFO 里替换成你自己的资料与二维码图片。</p>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>

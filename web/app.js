@@ -1,8 +1,22 @@
 const $ = (id) => document.getElementById(id);
 
+// —— 作者信息（演示数据）————————————————————————————————
+// 发布前把下面每一项替换成你自己的资料。qr 字段填二维码图片的文件名，
+// 图片放到 web/ 目录即可（例：'author-qr.png'）；留空则显示占位图形。
+const AUTHOR_INFO = {
+  name: '糕头',
+  tagline: 'AI × 自媒体 · 把工具做成普通人能用的样子',
+  bio: '一个用 AI 工具做自媒体的独立创作者。这个转写工作台是我自己日常在用的，开源出来希望帮刚开始做内容的你省点时间。',
+  wechat: 'demo-wechat-id',
+  email: 'demo@example.com',
+  site: 'https://example.com',
+  qr: '', // 例：'author-qr.png'；留空显示占位
+};
+
 const CONFIG_KEYS = [
   'ffmpeg', 'oneasr_cli', 'oneasr_data_root', 'inbox_dir', 'output_dir',
-  'work_dir', 'language', 'asr_model', 'aligner', 'backend',
+  'work_dir', 'language', 'asr_engine', 'asr_model', 'aligner', 'backend',
+  'cloud_asr_base_url', 'cloud_asr_api_key', 'cloud_asr_model',
   'rewrite_engine', 'rewrite_base_url', 'rewrite_api_key', 'rewrite_model',
   'port',
 ];
@@ -99,6 +113,46 @@ function showRewriteState(s) {
   }
 }
 
+// Engine switch: cloud mode shows its config block and dims local-only fields.
+function refreshEngineUI() {
+  const cloud = $('cfg_asr_engine').value === 'cloud';
+  $('cloudBlock').classList.toggle('hidden', !cloud);
+  document.querySelectorAll('.local-only').forEach((el) => {
+    el.classList.toggle('dimmed', cloud);
+    el.querySelectorAll('select, input').forEach((c) => { c.disabled = cloud; });
+  });
+  const base = $('cfg_cloud_asr_base_url').value.trim();
+  const model = $('cfg_cloud_asr_model').value.trim();
+  const state = $('cloudState');
+  if (!cloud) {
+    state.textContent = '当前：本地引擎，音频不出本机';
+    state.style.color = 'var(--ok)';
+  } else if (base && model) {
+    state.textContent = '当前：云端已配置，转写时将上传音频';
+    state.style.color = 'var(--warn)';
+  } else {
+    state.textContent = '当前：已选云端，尚未填 Base URL / 模型名';
+    state.style.color = 'var(--warn)';
+  }
+}
+
+function showAuthorInfo() {
+  $('authorName').textContent = AUTHOR_INFO.name;
+  $('authorTagline').textContent = AUTHOR_INFO.tagline;
+  $('authorBio').textContent = AUTHOR_INFO.bio;
+  $('authorWechat').textContent = AUTHOR_INFO.wechat;
+  $('authorEmail').textContent = AUTHOR_INFO.email;
+  $('authorSite').textContent = AUTHOR_INFO.site;
+  $('authorAvatar').textContent = (AUTHOR_INFO.name || '作').slice(0, 1);
+  if (AUTHOR_INFO.qr) {
+    const img = document.createElement('img');
+    img.src = AUTHOR_INFO.qr;
+    img.alt = '作者二维码';
+    $('authorQr').innerHTML = '';
+    $('authorQr').appendChild(img);
+  }
+}
+
 async function loadRewriteState() {
   try { showRewriteState(await api('/api/rewrite')); } catch (err) { /* offline */ }
 }
@@ -145,6 +199,9 @@ async function runTranscribe() {
     $('srtBox').textContent = r.srt || '（未生成 SRT）';
     $('txtBox').textContent = r.txt || '（未生成 TXT）';
     $('jobDir').textContent = r.job_dir || '—';
+    $('engineInfo').textContent = r.engine === 'cloud'
+      ? `云端 · ${r.cloud_provider || ''}${r.timestamp_precision === 'whole_file' ? ' · 整段时间轴' : ''}`
+      : '本地模型';
     $('srtPath').textContent = r.srt_path || '—';
     $('txtPath').textContent = r.txt_path || '—';
     $('elapsed').textContent = r.elapsed + ' 秒';
@@ -200,6 +257,26 @@ $('applyRewrite').addEventListener('click', async () => {
   } catch (err) { setProgress('保存失败：' + err.message, false); }
 });
 
+$('applyCloud').addEventListener('click', async () => {
+  try {
+    await saveConfig();
+    refreshEngineUI();
+    setProgress('云端听写配置已保存', false);
+  } catch (err) { setProgress('保存失败：' + err.message, false); }
+});
+
+['cfg_asr_engine'].forEach((id) => {
+  $(id).addEventListener('change', async () => {
+    refreshEngineUI();
+    try {
+      await saveConfig();
+      setProgress($('cfg_asr_engine').value === 'cloud'
+        ? '已切换到云端引擎（配置好 Base URL / 模型名后生效）'
+        : '已切换回本地引擎，音频不出本机', false);
+    } catch (err) { setProgress('保存失败：' + err.message, false); }
+  });
+});
+
 ['cfg_backend', 'cfg_asr_model', 'cfg_language', 'cfg_aligner'].forEach((id) => {
   $(id).addEventListener('change', async () => {
     try {
@@ -224,9 +301,23 @@ $('saveBtn').addEventListener('click', async () => {
 $('checkBtn').addEventListener('click', checkEnv);
 $('copyBtn').addEventListener('click', () => navigator.clipboard.writeText($('txtBox').textContent));
 
+// Author card: mock data lives in AUTHOR_INFO at the top of this file.
+$('authorBtn').addEventListener('click', () => {
+  showAuthorInfo();
+  $('authorModal').classList.remove('hidden');
+});
+$('authorClose').addEventListener('click', () => $('authorModal').classList.add('hidden'));
+$('authorModal').addEventListener('click', (e) => {
+  if (e.target === $('authorModal')) $('authorModal').classList.add('hidden');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') $('authorModal').classList.add('hidden');
+});
+
 (async function init() {
   try {
     await loadConfig();
+    refreshEngineUI();
     await loadFiles();
     await checkEnv();
     await loadRewriteState();

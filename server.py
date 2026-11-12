@@ -6,7 +6,8 @@ All external paths come from config.json; nothing here is tied to a
 particular machine, note-taking app, or knowledge base.
 
 The draft-rewrite engine is a reserved extension point (see rewrite.py).
-This version never makes outbound network requests.
+Local ASR is the default. The optional cloud ASR engine sends audio only when
+explicitly configured and selected by the user (see cloud_asr.py).
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+import cloud_asr
 import rewrite
 
 ROOT = Path(__file__).resolve().parent
@@ -46,9 +48,15 @@ DEFAULTS = {
     "output_dir": "./output",
     "work_dir": "./work",
     "language": "zh",
+    "asr_engine": "local",
     "asr_model": "0.6b",
     "aligner": "ctc",
     "backend": "auto",
+    # Optional OpenAI-compatible cloud transcription (POST {base_url}/audio/transcriptions).
+    # Off by default; audio is only uploaded when this engine is selected.
+    "cloud_asr_base_url": "",
+    "cloud_asr_api_key": "",
+    "cloud_asr_model": "",
     # Reserved: an OpenAI-compatible rewrite engine, off and unimplemented.
     "rewrite_engine": "off",
     "rewrite_base_url": "",
@@ -86,6 +94,8 @@ def public_config(cfg: dict) -> dict:
     out = dict(cfg)
     if out.get("rewrite_api_key"):
         out["rewrite_api_key"] = KEY_MASK
+    if out.get("cloud_asr_api_key"):
+        out["cloud_asr_api_key"] = KEY_MASK
     return out
 
 
@@ -214,11 +224,9 @@ def transcribe(cfg: dict, name: str) -> dict:
         raise ValueError("不支持的文件类型")
 
     ffmpeg = find_binary(cfg.get("ffmpeg", ""))
-    cli = find_binary(cfg.get("oneasr_cli", ""))
     if not ffmpeg:
         raise RuntimeError("找不到 ffmpeg，请检查设置页或 PATH")
-    if not cli:
-        raise RuntimeError("找不到 OneAsr CLI，请检查设置页")
+    engine = str(cfg.get("asr_engine", "local")).strip().lower()
 
     work = resolve_path(cfg.get("work_dir", "./work"))
     output = resolve_path(cfg.get("output_dir", "./output"))
@@ -228,9 +236,10 @@ def transcribe(cfg: dict, name: str) -> dict:
     job_dir.mkdir(parents=True, exist_ok=True)
     wav = work / f"{src.stem}.wav"
 
-    # Convert to 16 kHz mono PCM WAV ourselves. OneAsr copies a compliant WAV
-    # directly instead of spawning its own ffmpeg, which avoids "os error 5"
-    # on some Windows setups. Transcription/alignment output is unchanged.
+    # Convert to 16 kHz mono PCM WAV ourselves. The local CLI copies a
+    # compliant WAV directly instead of spawning its own ffmpeg, which avoids
+    # "os error 5" on some Windows setups; the cloud engine uploads this WAV
+    # as a plain, predictable payload. Transcription output is unchanged.
     run = subprocess.run(
         [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
          "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", str(wav)],
@@ -238,6 +247,37 @@ def transcribe(cfg: dict, name: str) -> dict:
     )
     if run.returncode != 0:
         raise RuntimeError(f"ffmpeg 转码失败：{run.stderr.strip()[:800]}")
+
+    srt_path = job_dir / f"{src.stem}.srt"
+    txt_path = job_dir / f"{src.stem}.txt"
+    timeline_path = job_dir / f"{src.stem}.timeline.json"
+    started = time.time()
+
+    if engine == "cloud":
+        result = cloud_asr.transcribe(wav, cfg)
+        srt_path.write_text(result["srt"], encoding="utf-8")
+        txt_path.write_text(result["txt"], encoding="utf-8")
+        timeline_path.write_text(
+            json.dumps(result["timeline"], ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return {
+            "elapsed": round(time.time() - started, 1),
+            "job_dir": str(job_dir),
+            "srt": result["srt"],
+            "txt": result["txt"],
+            "srt_path": str(srt_path),
+            "txt_path": str(txt_path),
+            "engine": "cloud",
+            "cloud_provider": result.get("provider", ""),
+            "timestamp_precision": result.get("timestamp_precision", ""),
+            "rewrite": rewrite.rewrite_status(cfg),
+            "log": f"云端听写：{result.get('provider', '')} / {cfg.get('cloud_asr_model', '')}",
+        }
+
+    cli = find_binary(cfg.get("oneasr_cli", ""))
+    if not cli:
+        raise RuntimeError("找不到 OneAsr CLI，请检查设置页")
 
     cmd = [
         cli, "transcribe", "--input", str(wav),
@@ -259,8 +299,6 @@ def transcribe(cfg: dict, name: str) -> dict:
     if run.returncode != 0:
         raise RuntimeError(f"转写失败：{(run.stderr or run.stdout).strip()[-1200:]}")
 
-    srt_path = job_dir / f"{src.stem}.srt"
-    txt_path = job_dir / f"{src.stem}.txt"
     return {
         "elapsed": elapsed,
         "job_dir": str(job_dir),
@@ -268,6 +306,7 @@ def transcribe(cfg: dict, name: str) -> dict:
         "txt": txt_path.read_text(encoding="utf-8", errors="replace") if txt_path.exists() else "",
         "srt_path": str(srt_path) if srt_path.exists() else "",
         "txt_path": str(txt_path) if txt_path.exists() else "",
+        "engine": "local",
         "rewrite": rewrite.rewrite_status(cfg),
         "log": (run.stdout or "").strip()[-800:],
     }
@@ -333,9 +372,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/config":
                 cfg = load_config()
                 updates = {k: v for k, v in body.items() if k in DEFAULTS}
-                # A masked key coming back from the UI means "keep the stored one".
-                if updates.get("rewrite_api_key") == KEY_MASK:
-                    updates.pop("rewrite_api_key")
+                # Masked keys coming back from the UI mean "keep the stored one".
+                for key_field in ("rewrite_api_key", "cloud_asr_api_key"):
+                    if updates.get(key_field) == KEY_MASK:
+                        updates.pop(key_field)
                 cfg.update(updates)
                 save_config(cfg)
                 return self._json({"ok": True, "config": public_config(cfg)})
