@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>把视频里的转成文字 · ASR Workbench</title>
+<title>把音视频里的话变成文字 · ASR Workbench</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="topbar">
   <div class="brand">
     <span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>
-    <span class="brand-text"><b>ASR Workbench</b><small>把视频里说的话，变成能改的文案</small></span>
+    <span class="brand-text"><b>ASR Workbench</b><small>把音视频里说的话，变成能改的文案</small></span>
   </div>
   <div class="steps" aria-label="使用步骤">
     <div class="step"><i>1</i><span>选素材</span></div>
@@ -32,8 +32,8 @@
   <section class="hero">
     <div class="hero-copy">
       <span class="hero-eyebrow">给刚开始做抖音带货的你</span>
-      <h1>视频里说的话，<em>一键变成能改的文案</em></h1>
-      <p>口播、直播回放、对标账号的视频，丢进来就行。不用一句句手打，也不用传到网上。<strong>选文件 → 点一下 → 复制走</strong>，三步完事。</p>
+      <h1>音视频里说的话，<em>一键变成能改的文案</em></h1>
+      <p>口播、直播回放、对标账号的视频，或者一段录音、播客、语音，丢进来就行。不用一句句手打，也不用传到网上。<strong>选文件 → 点一下 → 复制走</strong>，三步完事。</p>
       <div class="hero-points">
         <span><i class="dot"></i>不用注册、不用会员</span>
         <span><i class="dot"></i>文件只在你自己电脑里</span>
@@ -44,7 +44,7 @@
       <div class="art-chip art-video">
         <span class="art-play"></span>
         <span class="art-waves"><i></i><i></i><i></i><i></i><i></i></span>
-        <span class="art-caption">一段口播视频</span>
+        <span class="art-caption">一段口播 / 录音</span>
       </div>
       <div class="art-arrow">&#8594;</div>
       <div class="art-chip art-text">
@@ -57,16 +57,17 @@
   <div class="flow">
 
     <section class="card">
-      <div class="card-head"><span class="num">1</span><div><h2>选素材</h2><p>找到那个要转成文字的视频</p></div></div>
+      <div class="card-head"><span class="num">1</span><div><h2>选素材</h2><p>找到要转成文字的视频或音频</p></div></div>
       <div class="card-body">
         <div class="block">
-          <div class="block-title">视频放在哪个文件夹</div>
+          <div class="block-title">音视频放在哪个文件夹</div>
           <label class="field"><span>素材文件夹</span><input id="cfg_inbox_dir" type="text" placeholder="./inbox"></label>
           <div class="field-row">
             <button id="pickInbox" class="btn small">选个文件夹…</button>
             <button id="applyInbox" class="btn small">应用并刷新</button>
           </div>
           <p class="note">点「选个文件夹…」会弹出电脑自带的窗口，左边就有<strong>桌面</strong>和「下载」。选完自动生效，也可以直接把路径粘进来。</p>
+          <p class="note format-note"><strong>视频、纯音频都行</strong>：MP4 / MOV / MKV 等视频，以及 MP3 / WAV / M4A / AAC / FLAC / OGG 等音频。</p>
         </div>
         <div class="block">
           <div class="block-title">选文件（一次可以选好多个）<button id="refreshBtn" class="link-btn">刷新列表</button></div>
@@ -263,7 +264,7 @@
             </label>
           </div>
           <p class="note">时间轴 .json 是给程序看的，做文案用不到，文件还挺大。没选的文件不会删，会留在中间目录。</p>
-          <p class="note">每个视频会单独建一个<strong>同名文件夹</strong>，文件都放在里面，不会混。</p>
+          <p class="note">每个素材会单独建一个<strong>同名文件夹</strong>，文件都放在里面，不会混。</p>
         </div>
         <div class="block">
           <div class="block-title">这次做好的东西</div>
