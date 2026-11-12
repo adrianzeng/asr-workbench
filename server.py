@@ -52,6 +52,13 @@ DEFAULTS = {
     "asr_model": "0.6b",
     "aligner": "ctc",
     "backend": "auto",
+    # Which files stay in the per-media output folder:
+    #   txt      -> <stem>.txt
+    #   txt_srt  -> <stem>.txt + <stem>.srt                      (default)
+    #   all      -> <stem>.txt + <stem>.srt + <stem>.timeline.json
+    # Whatever is not kept is moved to work/kept/<stem>/ rather than deleted, so
+    # subtitles can be re-rendered later without transcribing again.
+    "output_mode": "txt_srt",
     # Optional OpenAI-compatible cloud transcription (POST {base_url}/audio/transcriptions).
     # Off by default; audio is only uploaded when this engine is selected.
     "cloud_asr_base_url": "",
@@ -113,34 +120,180 @@ def find_binary(value: str) -> str | None:
     return shutil.which(value)
 
 
-def pick_folder(kind: str = "") -> dict:
-    """Open the OS-native folder picker and return the chosen absolute path.
+# — Windows folder picker ————————————————————————————————————————————————
+# The modern IFileDialog (the one Explorer uses) is the only stock dialog whose
+# left rail carries 桌面 / 下载 / 文档. The legacy FolderBrowserDialog rooted at
+# "MyComputer" silently drops 桌面 from the tree, which is where most people
+# keep their material. So we prefer IFileDialog and fall back to the legacy
+# dialog rooted at the desktop when the COM interop cannot be compiled.
+#
+# PowerShell cannot cast a ComImport class to its interface reliably, so every
+# cast happens inside the C# helper and PowerShell only calls a static method.
+WIN_PICKER_CS = r"""
+using System;
+using System.Runtime.InteropServices;
 
-    Uses only OS-bundled commands: Windows PowerShell (WinForms
-    FolderBrowserDialog), macOS osascript, or zenity on Linux. This keeps the
-    project free of third-party Python packages and GUI toolkits.
-    """
-    title = FOLDER_PICK_TITLES.get(str(kind), "选择文件夹")
-    if sys.platform == "win32":
-        # -EncodedCommand takes UTF-16LE base64, which avoids all quoting and
-        # console-code-page problems with Chinese titles and folder names.
-        script = f"""
+[ComImport, Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
+public class FileOpenDialogRCW { }
+
+[ComImport, Guid("42F85136-DB7E-439C-85F1-E4075D135FC8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IFileDialog {
+    [PreserveSig] int Show(IntPtr parent);
+    void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+    void SetFileTypeIndex(uint iFileType);
+    void GetFileTypeIndex(out uint piFileType);
+    void Advise(IntPtr pfde, out uint pdwCookie);
+    void Unadvise(uint dwCookie);
+    void SetOptions(uint fos);
+    void GetOptions(out uint pfos);
+    void SetDefaultFolder(IShellItem psi);
+    void SetFolder(IShellItem psi);
+    void GetFolder(out IShellItem ppsi);
+    void GetCurrentSelection(out IShellItem ppsi);
+    void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+    void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
+    void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
+    void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
+    void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+    void GetResult(out IShellItem ppsi);
+    void AddPlace(IShellItem psi, int fdap);
+    void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string pszDefaultExtension);
+    void Close(int hr);
+    void SetClientGuid(ref Guid guid);
+    void ClearClientData();
+    void SetFilter(IntPtr pFilter);
+}
+
+[ComImport, Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IShellItem {
+    void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+    void GetParent(out IShellItem ppsi);
+    void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
+    void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+    void Compare(IShellItem psi, uint hint, out int piOrder);
+}
+
+public static class FolderPicker {
+    private const uint FOS_PICKFOLDERS     = 0x00000020;
+    private const uint FOS_FORCEFILESYSTEM = 0x00000040;
+    private const uint FOS_PATHMUSTEXIST   = 0x00000800;
+    private const uint SIGDN_FILESYSPATH   = 0x80058000;
+
+    // Returns the chosen folder, or "" when the user cancels.
+    public static string Pick(string title) {
+        IFileDialog dlg = (IFileDialog)new FileOpenDialogRCW();
+        try {
+            uint opts;
+            dlg.GetOptions(out opts);
+            dlg.SetOptions(opts | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+            dlg.SetTitle(title);
+            if (dlg.Show(IntPtr.Zero) != 0) return "";
+            IShellItem item;
+            dlg.GetResult(out item);
+            try {
+                string path;
+                item.GetDisplayName(SIGDN_FILESYSPATH, out path);
+                return path ?? "";
+            } finally {
+                Marshal.ReleaseComObject(item);
+            }
+        } finally {
+            Marshal.ReleaseComObject(dlg);
+        }
+    }
+}
+"""
+
+WIN_PICKER_PS = """
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+try {
+    Add-Type -TypeDefinition @'
+__CS__
+'@ -Language CSharp
+} catch {
+    [Console]::Error.WriteLine('PICKER_ERROR compile: ' + $_.Exception.Message)
+    exit 3
+}
+try {
+    $p = [FolderPicker]::Pick('__TITLE__')
+    if ($p) { Write-Output $p }
+} catch {
+    [Console]::Error.WriteLine('PICKER_ERROR runtime: ' + $_.Exception.Message)
+    exit 4
+}
+"""
+
+# Legacy dialog, used only if the modern one cannot be created. Rooting it at
+# the desktop at least keeps 桌面 (and 此电脑 under it) reachable.
+WIN_FALLBACK_PS = """
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ProgressPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $d = New-Object System.Windows.Forms.FolderBrowserDialog
-$d.Description = '{title}'
+$d.Description = '__TITLE__'
 $d.ShowNewFolderButton = $true
-$d.RootFolder = [System.Environment+SpecialFolder]::MyComputer
-if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
-    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-    Write-Output $d.SelectedPath
-}}
+$d.RootFolder = [System.Environment+SpecialFolder]::Desktop
+if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }
 $d.Dispose()
 """
-        encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
-        cmd = ["powershell", "-NoProfile", "-STA", "-EncodedCommand", encoded]
-    elif sys.platform == "darwin":
+
+
+def _run_powershell(template: str, title: str) -> tuple[str, int, str]:
+    """Run a PowerShell snippet as UTF-16LE base64 and return (out, rc, err).
+
+    -EncodedCommand avoids every quoting and console-code-page problem with
+    Chinese titles, folder names and non-ASCII user paths. Synthetic return
+    codes: 124 = the dialog was left open too long, 127 = no PowerShell at all.
+    """
+    script = template.replace("__CS__", WIN_PICKER_CS)
+    script = script.replace("__TITLE__", title.replace("'", "''"))
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    try:
+        run = subprocess.run(
+            ["powershell", "-NoProfile", "-STA", "-EncodedCommand", encoded],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return "", 124, "选择超时"
+    except FileNotFoundError as exc:
+        return "", 127, f"找不到系统目录选择器：{exc}"
+    except Exception as exc:
+        return "", 1, f"打开目录选择器失败：{exc}"
+    return run.stdout or "", run.returncode, run.stderr or ""
+
+
+def pick_folder(kind: str = "") -> dict:
+    """Open the OS-native folder picker and return the chosen absolute path.
+
+    Uses only OS-bundled commands: Windows PowerShell, macOS osascript, or
+    zenity on Linux. This keeps the project free of third-party Python
+    packages and GUI toolkits.
+    """
+    title = FOLDER_PICK_TITLES.get(str(kind), "选择文件夹")
+    if sys.platform == "win32":
+        raw, rc, err = _run_powershell(WIN_PICKER_PS, title)
+        if rc == 124:
+            return {"cancelled": True, "note": "选择超时，已取消"}
+        if rc == 127:
+            return {"cancelled": False, "error": err}
+        if rc != 0 or "PICKER_ERROR" in raw or "PICKER_ERROR" in err:
+            # Modern dialog unavailable (locked-down PowerShell, exotic build).
+            # The legacy one is a Windows Forms control and always loads.
+            raw, rc, err = _run_powershell(WIN_FALLBACK_PS, title)
+            if rc != 0:
+                detail = (err or raw).strip().splitlines()
+                return {"cancelled": False,
+                        "error": "打不开系统目录选择窗口：" + (detail[-1] if detail else f"退出码 {rc}")}
+        lines = [x.strip() for x in raw.splitlines() if x.strip()]
+        chosen = lines[-1] if lines else ""
+        if not chosen:
+            return {"cancelled": True}
+        return {"path": str(Path(chosen.rstrip("/\\") or chosen)), "cancelled": False}
+    if sys.platform == "darwin":
         safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
         cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{safe_title}")']
     else:
@@ -180,6 +333,32 @@ def safe_folder_name(stem: str) -> str:
     cleaned = "".join(c for c in stem if c not in '<>:"|?*' and ord(c) >= 32)
     cleaned = cleaned.strip().rstrip(". ")
     return cleaned or "untitled"
+
+
+OUTPUT_MODES = ("txt", "txt_srt", "all")
+
+
+def normalize_output_mode(value) -> str:
+    mode = str(value or "").strip().lower()
+    return mode if mode in OUTPUT_MODES else "txt_srt"
+
+
+def park_unwanted(job_dir: Path, work: Path, stem: str, wanted: dict) -> str:
+    """Move files the user chose not to publish into work/kept/<stem>/.
+
+    Nothing is deleted: the timeline still lets `oneasr-cli render` rebuild
+    subtitles later without running the whole transcription again. Returns the
+    folder used, or "" when nothing had to move.
+    """
+    parked_dir = work / "kept" / safe_folder_name(stem)
+    moved = False
+    for path, keep in wanted.items():
+        if keep or not path.exists():
+            continue
+        parked_dir.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(path), str(parked_dir / path.name))
+        moved = True
+    return str(parked_dir) if moved else ""
 
 
 def status_report(cfg: dict) -> dict:
@@ -251,26 +430,34 @@ def transcribe(cfg: dict, name: str) -> dict:
     srt_path = job_dir / f"{src.stem}.srt"
     txt_path = job_dir / f"{src.stem}.txt"
     timeline_path = job_dir / f"{src.stem}.timeline.json"
+    mode = normalize_output_mode(cfg.get("output_mode"))
+    keep_srt = mode in ("txt_srt", "all")
+    keep_timeline = mode == "all"
     started = time.time()
 
     if engine == "cloud":
         result = cloud_asr.transcribe(wav, cfg)
-        srt_path.write_text(result["srt"], encoding="utf-8")
         txt_path.write_text(result["txt"], encoding="utf-8")
+        srt_path.write_text(result["srt"], encoding="utf-8")
         timeline_path.write_text(
             json.dumps(result["timeline"], ensure_ascii=False, indent=2),
             encoding="utf-8",
+        )
+        parked = park_unwanted(
+            job_dir, work, src.stem, {srt_path: keep_srt, timeline_path: keep_timeline}
         )
         return {
             "elapsed": round(time.time() - started, 1),
             "job_dir": str(job_dir),
             "srt": result["srt"],
             "txt": result["txt"],
-            "srt_path": str(srt_path),
+            "srt_path": str(srt_path) if keep_srt else "",
             "txt_path": str(txt_path),
             "engine": "cloud",
             "cloud_provider": result.get("provider", ""),
             "timestamp_precision": result.get("timestamp_precision", ""),
+            "output_mode": mode,
+            "parked": parked,
             "rewrite": rewrite.rewrite_status(cfg),
             "log": f"云端听写：{result.get('provider', '')} / {cfg.get('cloud_asr_model', '')}",
         }
@@ -299,14 +486,26 @@ def transcribe(cfg: dict, name: str) -> dict:
     if run.returncode != 0:
         raise RuntimeError(f"转写失败：{(run.stderr or run.stdout).strip()[-1200:]}")
 
+    # Read the previews before parking: the draft pane always shows the full
+    # timed text, even when the user asked for a bare .txt on disk.
+    srt_text = srt_path.read_text(encoding="utf-8", errors="replace") if srt_path.exists() else ""
+    txt_text = txt_path.read_text(encoding="utf-8", errors="replace") if txt_path.exists() else ""
+    srt_ready = keep_srt and srt_path.exists()
+    txt_ready = txt_path.exists()
+    parked = park_unwanted(
+        job_dir, work, src.stem, {srt_path: keep_srt, timeline_path: keep_timeline}
+    )
+
     return {
         "elapsed": elapsed,
         "job_dir": str(job_dir),
-        "srt": srt_path.read_text(encoding="utf-8", errors="replace") if srt_path.exists() else "",
-        "txt": txt_path.read_text(encoding="utf-8", errors="replace") if txt_path.exists() else "",
-        "srt_path": str(srt_path) if srt_path.exists() else "",
-        "txt_path": str(txt_path) if txt_path.exists() else "",
+        "srt": srt_text,
+        "txt": txt_text,
+        "srt_path": str(srt_path) if srt_ready else "",
+        "txt_path": str(txt_path) if txt_ready else "",
         "engine": "local",
+        "output_mode": mode,
+        "parked": parked,
         "rewrite": rewrite.rewrite_status(cfg),
         "log": (run.stdout or "").strip()[-800:],
     }

@@ -10,6 +10,7 @@
   "asr_model": "0.6b",
   "aligner": "ctc",
   "backend": "auto",
+  "output_mode": "txt_srt",
   "cloud_asr_base_url": "",
   "cloud_asr_api_key": "",
   "cloud_asr_model": "",

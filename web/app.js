@@ -16,6 +16,7 @@ const AUTHOR_INFO = {
 const CONFIG_KEYS = [
   'ffmpeg', 'oneasr_cli', 'oneasr_data_root', 'inbox_dir', 'output_dir',
   'work_dir', 'language', 'asr_engine', 'asr_model', 'aligner', 'backend',
+  'output_mode',
   'cloud_asr_base_url', 'cloud_asr_api_key', 'cloud_asr_model',
   'rewrite_engine', 'rewrite_base_url', 'rewrite_api_key', 'rewrite_model',
   'port',
@@ -36,6 +37,9 @@ function collectConfig() {
     const el = $('cfg_' + k);
     if (el) payload[k] = el.value;
   });
+  // Radios share one name instead of one id, so read the checked one directly.
+  const mode = document.querySelector('input[name="cfg_output_mode"]:checked');
+  if (mode) payload.output_mode = mode.value;
   payload.port = Number(payload.port) || 8765;
   return payload;
 }
@@ -55,6 +59,9 @@ async function loadConfig() {
     const el = $('cfg_' + k);
     if (el && cfg[k] !== undefined && cfg[k] !== null) el.value = cfg[k];
   });
+  const mode = ['txt', 'txt_srt', 'all'].includes(cfg.output_mode) ? cfg.output_mode : 'txt_srt';
+  const radio = document.querySelector(`input[name="cfg_output_mode"][value="${mode}"]`);
+  if (radio) radio.checked = true;
 }
 
 function renderFiles(files) {
@@ -202,7 +209,7 @@ async function runTranscribe() {
     $('engineInfo').textContent = r.engine === 'cloud'
       ? `云端 · ${r.cloud_provider || ''}${r.timestamp_precision === 'whole_file' ? ' · 整段时间轴' : ''}`
       : '本地模型';
-    $('srtPath').textContent = r.srt_path || '—';
+    $('srtPath').textContent = r.srt_path || (r.output_mode === 'txt' ? '按设置未输出' : '—');
     $('txtPath').textContent = r.txt_path || '—';
     $('elapsed').textContent = r.elapsed + ' 秒';
     $('copyBtn').disabled = !r.txt;
@@ -286,6 +293,25 @@ $('applyCloud').addEventListener('click', async () => {
   });
 });
 
+// The timed pane always previews the alignment result; the tag just tells the
+// truth about whether an .srt will also land on disk.
+function refreshOutputModeUI() {
+  const picked = document.querySelector('input[name="cfg_output_mode"]:checked');
+  const mode = picked ? picked.value : 'txt_srt';
+  const tag = $('srtPaneTag');
+  if (tag) tag.textContent = mode === 'txt' ? 'SRT · 仅预览' : 'SRT';
+}
+
+document.querySelectorAll('input[name="cfg_output_mode"]').forEach((el) => {
+  el.addEventListener('change', async () => {
+    refreshOutputModeUI();
+    try {
+      await saveConfig();
+      setProgress('产物文件已切换，下次转写生效', false);
+    } catch (err) { setProgress('保存失败：' + err.message, false); }
+  });
+});
+
 $('saveBtn').addEventListener('click', async () => {
   try {
     await saveConfig();
@@ -318,6 +344,7 @@ document.addEventListener('keydown', (e) => {
   try {
     await loadConfig();
     refreshEngineUI();
+    refreshOutputModeUI();
     await loadFiles();
     await checkEnv();
     await loadRewriteState();

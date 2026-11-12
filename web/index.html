@@ -111,7 +111,7 @@
         <div class="block">
           <div class="block-title">草稿 &#8596; 成稿</div>
           <div class="pair">
-            <div class="pane"><div class="pane-head">带时间轴的草稿 <span>SRT</span></div><pre id="srtBox" class="box">尚未转写</pre></div>
+            <div class="pane"><div class="pane-head">带时间轴的字幕草稿 <span id="srtPaneTag">SRT</span></div><pre id="srtBox" class="box">尚未转写</pre></div>
             <div class="pane"><div class="pane-head">成稿 <span>TXT</span></div><pre id="txtBox" class="box">尚未转写</pre></div>
           </div>
         </div>
@@ -152,15 +152,27 @@
         <div class="block">
           <div class="block-title">输出设置</div>
           <label class="field"><span>输出目录</span><input id="cfg_output_dir" type="text" placeholder="./output"></label>
-          <div class="checks">
-            <label><input type="checkbox" checked disabled> SRT 字幕</label>
-            <label><input type="checkbox" checked disabled> TXT 文稿</label>
-          </div>
           <div class="field-row">
             <button id="pickOutput" class="btn small">选择文件夹…</button>
             <button id="applyOutput" class="btn small">应用</button>
           </div>
-          <p class="note">每个素材会在输出目录下单独建一个<strong>同名文件夹</strong>，SRT / TXT / 时间轴都放在里面，不会混在一起。</p>
+          <div class="mode-title">产物文件</div>
+          <div class="modes">
+            <label class="mode">
+              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_txt" value="txt">
+              <span class="mode-body"><b>只要文稿</b><em>一个 .txt，段落是整段文字</em></span>
+            </label>
+            <label class="mode">
+              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_txt_srt" value="txt_srt">
+              <span class="mode-body"><b>文稿 + 字幕</b><em>.txt 加一份 .srt，可直接上传到剪辑软件</em></span>
+            </label>
+            <label class="mode">
+              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_all" value="all">
+              <span class="mode-body"><b>全部</b><em>再加时间轴 .json，给程序用，体积最大</em></span>
+            </label>
+          </div>
+          <p class="note">时间轴 <code>.json</code> 是打轴（对齐）算出来的逐句逐字数据，普通做稿子用不到，长视频能到几 MB。不输出的文件会留在中间目录，不会删掉。</p>
+          <p class="note">每个素材会在输出目录下单独建一个<strong>同名文件夹</strong>，产物都放在里面，不会混在一起。</p>
         </div>
         <div class="block">
           <div class="block-title">本次产物</div>
