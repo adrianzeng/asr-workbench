@@ -8,6 +8,23 @@
 
 ---
 
+## 0. 先启动起来（双击就行，不用输命令）
+
+| 你的电脑 | 双击哪个文件 |
+|---|---|
+| Windows | **`启动工作台.bat`** |
+| macOS | **`启动工作台.command`** |
+| Linux | 终端里执行 `bash 启动工作台.command` |
+
+双击后会弹出一个黑色小窗口，**别关它**；浏览器会自动打开 <http://127.0.0.1:8765>。窗口开着就表示服务在跑；用完直接关掉那个窗口，服务就停了。
+
+- 黑窗口里说「没找到能用的 Python」：按窗口里写的 4 步装一次 Python，安装时记得勾 **Add Python to PATH**，装完重新双击即可。除此之外不用装别的东西。
+- 已经启动过、又双击了一遍也没关系：它会认出「服务已经在运行」，只把页面再打开一次，不会重复启动。
+- 浏览器没自动弹出来：自己把 `http://127.0.0.1:8765` 复制到浏览器地址栏。
+- 想从命令行启动也可以：`python start.py`；老办法 `python server.py` 同样有效。
+
+---
+
 ## 1. 这个项目的边界
 
 - **独立**：自带前端与极薄后端，不依赖任何外部业务系统。
@@ -19,7 +36,7 @@
 
 ---
 
-## 2. 环境要求（先配好，再启动）
+## 2. 环境要求（装一次就好）
 
 | 组件 | 版本 | 用途 |
 |---|---|---|
@@ -105,23 +122,19 @@ ffmpeg -version
 oneasr-cli status --json
 ```
 
-三条都通过，就可以启动了。
+三条都通过就齐了。其实不查也行：双击启动后，页面右上角的「环境就绪 / 环境未就绪」和「高级设置」会直接告诉你缺什么。
 
 ---
 
 ## 4. 安装本项目
 
-```bash
-git clone <your-repo-url>
-cd ASR_Workbench
-cp config.example.json config.json      # Windows PowerShell: Copy-Item config.example.json config.json
-python server.py
-```
+1. 把项目下载解压到一个固定文件夹（路径里尽量别带中文和空格）。用 Git 的话：`git clone <your-repo-url>`。
+2. 回到上面 **「0. 先启动起来」**，双击对应的启动文件。
+3. 第一次打开后，展开页面最下面的「高级设置」，把 ffmpeg / OneAsr 的路径填进去，点「保存全部配置」。
 
-浏览器打开 <http://127.0.0.1:8765>（端口可在 `config.json` 改）。
-服务只监听 `127.0.0.1`，不对外网开放。
+`config.json` 不用手动建：第一次保存设置时会自动生成；它已被 `.gitignore` 忽略，里面可以放心写本机的绝对路径。端口也在里面改（默认 `8765`）。
 
-`config.json` 已被 `.gitignore` 忽略，里面可以放心写你本机的绝对路径。
+服务只监听 `127.0.0.1`，不对外网开放。命令行启动：`python start.py`（老办法 `python server.py` 也仍然有效）。
 
 ---
 
@@ -270,11 +283,11 @@ OneAsr 在部分 Windows 环境下，由自身进程启动 ffmpeg 子进程会�
 
 **`python` 跳商店 / 版本不对** — 见第 3.1 节的 App 执行别名说明。
 
-**点「选择文件夹…」没弹出窗口** — 窗口可能在浏览器后面，看一眼任务栏；Linux 需先装 `zenity`；若服务是在无图形会话的后台 / CI 里启动的，改用普通终端启动 `python server.py`，或直接手填路径。
+**点「选择文件夹…」没弹出窗口** — 窗口可能在浏览器后面，看一眼任务栏；Linux 需先装 `zenity`；若服务是在无图形会话的后台 / CI 里启动的，改用普通终端执行 `python start.py`，或直接手填路径。
 
 **转写结果没有标点** — 检查 `language` 是否与素材语言一致；粤语素材要选 `yue` 而不是 `zh`。
 
-**后端报 `WinError 5` / `os error 5`** — 少数沙箱、CI 或受限终端会禁止服务进程再派生子进程（报错落在 `subprocess.run` 的 `CreateProcess`）。优先改用系统自带的普通终端启动 `python server.py`；若仍受限，可用下面两种已验证的等价方式：
+**后端报 `WinError 5` / `os error 5`** — 少数沙箱、CI 或受限终端会禁止服务进程再派生子进程（报错落在 `subprocess.run` 的 `CreateProcess`）。优先改用系统自带的普通终端执行 `python start.py`；若仍受限，可用下面两种已验证的等价方式：
 
 ```bash
 python -c "import server; server.main()"                              # 起服务
@@ -287,6 +300,9 @@ python -c "import server; server.transcribe(server.load_config(), 'demo.mp4')"  
 
 ```
 ASR_Workbench/
+├── 启动工作台.bat        # Windows 双击启动
+├── 启动工作台.command   # macOS 双击启动（Linux 用 bash 跑）
+├── start.py             # 启动器：开浏览器、查端口、拉起服务
 ├── server.py            # 标准库 HTTP 后端
 ├── cloud_asr.py         # 云端听写引擎（OpenAI 兼容，标准库实现）
 ├── rewrite.py           # 改稿引擎扩展点（预留）
