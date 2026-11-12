@@ -3,193 +3,228 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ASR Workbench</title>
+<title>把视频里的转成文字 · ASR Workbench</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="logo"></span>ASR Workbench</div>
-  <div class="steps">
-    <div class="step"><i>1</i><span>进件</span></div>
+  <div class="brand">
+    <span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="brand-text"><b>ASR Workbench</b><small>把视频里说的话，变成能改的文案</small></span>
+  </div>
+  <div class="steps" aria-label="使用步骤">
+    <div class="step"><i>1</i><span>选素材</span></div>
     <div class="step-line"></div>
-    <div class="step"><i>2</i><span>草稿</span></div>
+    <div class="step"><i>2</i><span>出稿子</span></div>
     <div class="step-line"></div>
-    <div class="step"><i>3</i><span>出口</span></div>
+    <div class="step"><i>3</i><span>拿文件</span></div>
   </div>
   <div id="envBadge" class="badge">检查环境中…</div>
 </header>
 
 <main>
+  <section class="hero">
+    <div class="hero-copy">
+      <span class="hero-eyebrow">给刚开始做抖音带货的你</span>
+      <h1>视频里说的话，<em>一键变成能改的文案</em></h1>
+      <p>口播、直播回放、对标账号的视频，丢进来就行。不用一句句手打，也不用传到网上。<strong>选文件 → 点一下 → 复制走</strong>，三步完事。</p>
+      <div class="hero-points">
+        <span><i class="dot"></i>不用注册、不用会员</span>
+        <span><i class="dot"></i>文件只在你自己电脑里</span>
+        <span><i class="dot"></i>普通办公本也能跑</span>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <div class="art-chip art-video">
+        <span class="art-play"></span>
+        <span class="art-waves"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="art-caption">一段口播视频</span>
+      </div>
+      <div class="art-arrow">&#8594;</div>
+      <div class="art-chip art-text">
+        <span class="art-sheet"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="art-caption">一份能改的文字稿</span>
+      </div>
+    </div>
+  </section>
+
   <div class="flow">
 
     <section class="card">
-      <div class="card-head"><span class="num">1</span><div><h2>进件</h2><p>把音视频放进素材目录</p></div></div>
+      <div class="card-head"><span class="num">1</span><div><h2>选素材</h2><p>找到那个要转成文字的视频</p></div></div>
       <div class="card-body">
         <div class="block">
-          <div class="block-title">路径设置</div>
-          <label class="field"><span>素材目录</span><input id="cfg_inbox_dir" type="text" placeholder="./inbox"></label>
+          <div class="block-title">视频放在哪个文件夹</div>
+          <label class="field"><span>素材文件夹</span><input id="cfg_inbox_dir" type="text" placeholder="./inbox"></label>
           <div class="field-row">
-            <button id="pickInbox" class="btn small">选择文件夹…</button>
+            <button id="pickInbox" class="btn small">选个文件夹…</button>
             <button id="applyInbox" class="btn small">应用并刷新</button>
           </div>
-          <p class="note">点「选择文件夹…」会打开系统自带的目录选择窗口，选完自动填回并生效；也可以直接手填路径。相对路径以项目根目录为准。</p>
+          <p class="note">点「选个文件夹…」会弹出电脑自带的窗口，左边就有<strong>桌面</strong>和「下载」。选完自动生效，也可以直接把路径粘进来。</p>
         </div>
         <div class="block">
-          <div class="block-title">待转写文件<button id="refreshBtn" class="link-btn">刷新</button></div>
-          <div id="fileList" class="filelist"><div class="empty">加载中…</div></div>
+          <div class="block-title">选一个文件<button id="refreshBtn" class="link-btn">刷新列表</button></div>
+          <div id="fileList" class="filelist"><div class="empty">正在找文件…</div></div>
         </div>
-        <button id="runBtn" class="btn primary" disabled>开始转写</button>
-        <div id="progress" class="progress"></div>
+        <button id="runBtn" class="btn primary" disabled>开始转文字</button>
+        <p class="run-hint">选好文件再点。长视频要等几分钟，中途别关页面。</p>
+        <div id="progress" class="progress" aria-live="polite"></div>
         <div class="progress-track"><div id="progressBar"></div></div>
       </div>
     </section>
 
-    <div class="flow-arrow"><span>&#8594;</span></div>
+    <div class="flow-arrow" aria-hidden="true"><span>&#8594;</span></div>
 
     <section class="card wide">
-      <div class="card-head"><span class="num">2</span><div><h2>草稿</h2><p>识别设置与文稿对照</p></div></div>
+      <div class="card-head"><span class="num">2</span><div><h2>出稿子</h2><p>转完就在这里看，可以直接复制</p></div></div>
       <div class="card-body">
-        <div class="block">
-          <div class="block-title">识别设置</div>
-          <div class="field-grid">
-            <label class="field"><span>听写引擎</span>
-              <select id="cfg_asr_engine">
-                <option value="local">本地模型（默认，不上传）</option>
-                <option value="cloud">云端 API（上传音频）</option>
-              </select>
-            </label>
-            <label class="field local-only"><span>识别后端</span>
-              <select id="cfg_backend">
-                <option value="auto">自动（有显卡用显卡）</option>
-                <option value="cpu">仅 CPU（普通笔记本）</option>
-                <option value="gpu">仅 GPU</option>
-              </select>
-            </label>
-            <label class="field local-only"><span>听写模型</span>
-              <select id="cfg_asr_model">
-                <option value="0.6b">0.6B（轻，CPU 可跑）</option>
-                <option value="1.7b">1.7B（更准，吃资源）</option>
-              </select>
-            </label>
-            <label class="field local-only"><span>语言</span>
-              <select id="cfg_language">
-                <option value="zh">中文普通话</option>
-                <option value="yue">粤语</option>
-                <option value="en">English</option>
-                <option value="ja">日本語</option>
-                <option value="ko">한국어</option>
-              </select>
-            </label>
-            <label class="field local-only"><span>对齐器</span>
-              <select id="cfg_aligner">
-                <option value="ctc">CTC（默认）</option>
-                <option value="qwen">Qwen</option>
-              </select>
-            </label>
+        <div class="block result-block">
+          <div class="block-title">你的稿子</div>
+          <div class="pair">
+            <div class="pane"><div class="pane-head">带时间的字幕 <span id="srtPaneTag">字幕</span></div><pre id="srtBox" class="box">还没开始，左边选个文件吧</pre></div>
+            <div class="pane"><div class="pane-head">纯文字稿 <span>文字稿</span></div><pre id="txtBox" class="box">还没开始，左边选个文件吧</pre></div>
           </div>
-          <div id="cloudBlock" class="cloud-block hidden">
-            <div class="cloud-warn">已选云端引擎：转写时会把<strong>整段音频</strong>发送到你在下面配置的服务，不会再走本地模型。请确认该服务是你信任的。</div>
+          <p class="note">右边那份是能直接拿去改的文案；左边那份多了每句话的时间点，做字幕时才用得上。</p>
+        </div>
+
+        <details class="fold" id="advancedSettings">
+          <summary>识别设置 <span>第一次用不用管，点开才看得到</span></summary>
+          <div class="fold-body">
             <div class="field-grid">
-              <label class="field"><span>Base URL</span>
-                <input id="cfg_cloud_asr_base_url" type="text" placeholder="例：https://api.example.com/v1">
+              <label class="field"><span>听写引擎</span>
+                <select id="cfg_asr_engine">
+                  <option value="local">自己电脑上跑（默认，不上传）</option>
+                  <option value="cloud">云端 API（会把音频传出去）</option>
+                </select>
+              </label>
+              <label class="field local-only"><span>识别后端</span>
+                <select id="cfg_backend">
+                  <option value="auto">自动（有显卡用显卡）</option>
+                  <option value="cpu">仅 CPU（普通笔记本）</option>
+                  <option value="gpu">仅 GPU</option>
+                </select>
+              </label>
+              <label class="field local-only"><span>听写模型</span>
+                <select id="cfg_asr_model">
+                  <option value="0.6b">0.6B（轻，CPU 可跑）</option>
+                  <option value="1.7b">1.7B（更准，吃资源）</option>
+                </select>
+              </label>
+              <label class="field local-only"><span>说的哪种话</span>
+                <select id="cfg_language">
+                  <option value="zh">普通话</option>
+                  <option value="yue">粤语</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                </select>
+              </label>
+              <label class="field local-only"><span>打轴方式</span>
+                <select id="cfg_aligner">
+                  <option value="ctc">CTC（默认）</option>
+                  <option value="qwen">Qwen</option>
+                </select>
+              </label>
+            </div>
+            <div id="cloudBlock" class="cloud-block hidden">
+              <div class="cloud-warn">已选云端引擎：转写时会把<strong>整段音频</strong>发送到你下面填的那个服务，不再走自己电脑里的模型。请确认这个服务你信得过。</div>
+              <div class="field-grid">
+                <label class="field"><span>Base URL</span>
+                  <input id="cfg_cloud_asr_base_url" type="text" placeholder="例：https://api.example.com/v1">
+                </label>
+                <label class="field"><span>模型名</span>
+                  <input id="cfg_cloud_asr_model" type="text" placeholder="服务方给的听写模型名">
+                </label>
+              </div>
+              <label class="field"><span>API Key</span>
+                <input id="cfg_cloud_asr_api_key" type="password" placeholder="只存在你自己电脑里，不会进开源仓库">
+              </label>
+              <div class="field-row">
+                <button id="applyCloud" class="btn small">保存云端配置</button>
+                <span id="cloudState" class="field-hint">当前：未配置</span>
+              </div>
+              <p class="note">接口协议为 OpenAI 兼容的 <code>/audio/transcriptions</code>；若服务方不返回分段时间，字幕会以「整段 + 全文」的形式如实输出。</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="fold">
+          <summary>改稿引擎 <span class="tag">还没开通</span></summary>
+          <div class="fold-body">
+            <div class="field-grid">
+              <label class="field"><span>模式</span>
+                <select id="cfg_rewrite_engine">
+                  <option value="off">关闭（纯本地，默认）</option>
+                  <option value="openai">OpenAI 兼容接口（预留，未启用）</option>
+                </select>
               </label>
               <label class="field"><span>模型名</span>
-                <input id="cfg_cloud_asr_model" type="text" placeholder="服务方提供的听写模型名">
+                <input id="cfg_rewrite_model" type="text" placeholder="例：qwen3-vl-8b / deepseek-chat">
               </label>
             </div>
+            <label class="field"><span>Base URL</span>
+              <input id="cfg_rewrite_base_url" type="text" placeholder="例：http://localhost:11434/v1 或云端服务的 /v1">
+            </label>
             <label class="field"><span>API Key</span>
-              <input id="cfg_cloud_asr_api_key" type="password" placeholder="仅存本机 config.json，不会出现在开源仓库">
+              <input id="cfg_rewrite_api_key" type="password" placeholder="留空即可；只存本机，不进仓库">
             </label>
             <div class="field-row">
-              <button id="applyCloud" class="btn small">保存云端配置</button>
-              <span id="cloudState" class="field-hint">当前：未配置</span>
+              <button id="applyRewrite" class="btn small">保存预留配置</button>
+              <span id="rewriteState" class="field-hint">当前：纯本地</span>
             </div>
-            <p class="note">接口协议为 OpenAI 兼容的 <code>/audio/transcriptions</code>；若服务方不返回分段时间，SRT 会以「整段时间轴 + 全文」的形式如实输出。</p>
+            <p class="note"><strong>这一版只是留了个位置，不会联网、也不会改你的稿子。</strong>将来启用时只发文字、不发音频；云端（DeepSeek / 通义 / OpenAI）或本机 Ollama / LM Studio 都能接。</p>
           </div>
-        </div>
-
-        <div class="block">
-          <div class="block-title">草稿 &#8596; 成稿</div>
-          <div class="pair">
-            <div class="pane"><div class="pane-head">带时间轴的字幕草稿 <span id="srtPaneTag">SRT</span></div><pre id="srtBox" class="box">尚未转写</pre></div>
-            <div class="pane"><div class="pane-head">成稿 <span>TXT</span></div><pre id="txtBox" class="box">尚未转写</pre></div>
-          </div>
-        </div>
-
-        <div class="block muted-block">
-          <div class="block-title">改稿引擎 <span class="tag">接口预留</span></div>
-          <div class="field-grid">
-            <label class="field"><span>模式</span>
-              <select id="cfg_rewrite_engine">
-                <option value="off">关闭（纯本地，默认）</option>
-                <option value="openai">OpenAI 兼容接口（预留，未启用）</option>
-              </select>
-            </label>
-            <label class="field"><span>模型名</span>
-              <input id="cfg_rewrite_model" type="text" placeholder="例：qwen3-vl-8b / deepseek-chat">
-            </label>
-          </div>
-          <label class="field"><span>Base URL</span>
-            <input id="cfg_rewrite_base_url" type="text" placeholder="例：http://localhost:11434/v1 或云端服务的 /v1">
-          </label>
-          <label class="field"><span>API Key</span>
-            <input id="cfg_rewrite_api_key" type="password" placeholder="留空即可；仅存本机 config.json，不进仓库">
-          </label>
-          <div class="field-row">
-            <button id="applyRewrite" class="btn small">保存预留配置</button>
-            <span id="rewriteState" class="field-hint">当前：纯本地</span>
-          </div>
-          <p class="note"><strong>本版本只是接口预留，不会发起任何网络请求</strong>，文稿不会离开本机。将来启用时只发送文字稿、不发送音频；同一个口子可接云端（DeepSeek / 通义 / OpenAI），也可接本机 Ollama / LM Studio 跑的模型。</p>
-        </div>
+        </details>
       </div>
     </section>
 
-    <div class="flow-arrow"><span>&#8594;</span></div>
+    <div class="flow-arrow" aria-hidden="true"><span>&#8594;</span></div>
 
     <section class="card">
-      <div class="card-head"><span class="num">3</span><div><h2>出口</h2><p>产物与输出设置</p></div></div>
+      <div class="card-head"><span class="num">3</span><div><h2>拿文件</h2><p>稿子存哪儿、要哪几份</p></div></div>
       <div class="card-body">
         <div class="block">
-          <div class="block-title">输出设置</div>
-          <label class="field"><span>输出目录</span><input id="cfg_output_dir" type="text" placeholder="./output"></label>
+          <div class="block-title">文件存哪里</div>
+          <label class="field"><span>保存文件夹</span><input id="cfg_output_dir" type="text" placeholder="./output"></label>
           <div class="field-row">
-            <button id="pickOutput" class="btn small">选择文件夹…</button>
+            <button id="pickOutput" class="btn small">选个文件夹…</button>
             <button id="applyOutput" class="btn small">应用</button>
           </div>
-          <div class="mode-title">产物文件</div>
+          <div class="mode-title">要哪几个文件</div>
           <div class="modes">
             <label class="mode">
-              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_txt" value="txt">
-              <span class="mode-body"><b>只要文稿</b><em>一个 .txt，段落是整段文字</em></span>
+              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_txt" value="txt" autocomplete="off">
+              <span class="mode-body"><b>只要文字稿</b><em>一份 txt，拿去改文案</em></span>
             </label>
             <label class="mode">
-              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_txt_srt" value="txt_srt">
-              <span class="mode-body"><b>文稿 + 字幕</b><em>.txt 加一份 .srt，可直接上传到剪辑软件</em></span>
+              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_txt_srt" value="txt_srt" autocomplete="off">
+              <span class="mode-body"><b>文字稿 + 字幕</b><em>多一份字幕，能直接传剪辑软件</em></span>
             </label>
             <label class="mode">
-              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_all" value="all">
-              <span class="mode-body"><b>全部</b><em>再加时间轴 .json，给程序用，体积最大</em></span>
+              <input type="radio" name="cfg_output_mode" id="cfg_output_mode_all" value="all" autocomplete="off">
+              <span class="mode-body"><b>全都要</b><em>再加时间轴数据，懂程序的人才用</em></span>
             </label>
           </div>
-          <p class="note">时间轴 <code>.json</code> 是打轴（对齐）算出来的逐句逐字数据，普通做稿子用不到，长视频能到几 MB。不输出的文件会留在中间目录，不会删掉。</p>
-          <p class="note">每个素材会在输出目录下单独建一个<strong>同名文件夹</strong>，产物都放在里面，不会混在一起。</p>
+          <p class="note">时间轴 .json 是给程序看的，做文案用不到，文件还挺大。没选的文件不会删，会留在中间目录。</p>
+          <p class="note">每个视频会单独建一个<strong>同名文件夹</strong>，文件都放在里面，不会混。</p>
         </div>
         <div class="block">
-          <div class="block-title">本次产物</div>
-          <div class="kv"><span>产物目录</span><code id="jobDir">—</code></div>
-          <div class="kv"><span>引擎</span><code id="engineInfo">—</code></div>
-          <div class="kv"><span>SRT</span><code id="srtPath">—</code></div>
-          <div class="kv"><span>TXT</span><code id="txtPath">—</code></div>
-          <div class="kv"><span>耗时</span><code id="elapsed">—</code></div>
+          <div class="block-title">这次做好的东西</div>
+          <div class="kv"><span>放在这里</span><code id="jobDir">—</code></div>
+          <div class="kv"><span>用的引擎</span><code id="engineInfo">—</code></div>
+          <div class="kv"><span>字幕文件</span><code id="srtPath">—</code></div>
+          <div class="kv"><span>文字稿</span><code id="txtPath">—</code></div>
+          <div class="kv"><span>花了多久</span><code id="elapsed">—</code></div>
         </div>
-        <button id="copyBtn" class="btn ghost" disabled>复制成稿</button>
+        <button id="copyBtn" class="btn copy" disabled>复制文字稿</button>
+        <p class="run-hint">复制完直接粘到备忘录、文档或剪辑软件里。</p>
       </div>
     </section>
 
   </div>
 
   <details class="env-card" id="envCard">
-    <summary><span class="env-mark"></span>环境配置<span class="env-sum">ffmpeg / OneAsr CLI / 数据目录 / 端口</span></summary>
+    <summary><span class="env-mark"></span>高级设置<span class="env-sum">第一次用不用管 · 装环境时才需要</span></summary>
     <div class="env-body">
       <div class="field-grid three">
         <label class="field"><span>ffmpeg</span><input id="cfg_ffmpeg" type="text" placeholder="ffmpeg 或完整路径"></label>
@@ -206,7 +241,7 @@
     </div>
   </details>
 
-  <div class="assistant-bar"><span class="pill">第二阶段</span><span>语音助手（麦克风输入 / 朗读回答）尚未启用</span></div>
+  <div class="assistant-bar"><span class="pill">以后会加</span><span>直接对着麦克风说话、自动念给你听 —— 这一版还用不了</span></div>
 </main>
 
 <button id="authorBtn" class="author-btn" title="关于作者">&#9432; 关于作者</button>

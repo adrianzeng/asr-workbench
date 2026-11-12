@@ -123,6 +123,8 @@ function showRewriteState(s) {
 // Engine switch: cloud mode shows its config block and dims local-only fields.
 function refreshEngineUI() {
   const cloud = $('cfg_asr_engine').value === 'cloud';
+  // Never hide the "your audio will be uploaded" warning behind a folded panel.
+  if (cloud && $('advancedSettings')) $('advancedSettings').open = true;
   $('cloudBlock').classList.toggle('hidden', !cloud);
   document.querySelectorAll('.local-only').forEach((el) => {
     el.classList.toggle('dimmed', cloud);
@@ -164,16 +166,16 @@ async function loadRewriteState() {
   try { showRewriteState(await api('/api/rewrite')); } catch (err) { /* offline */ }
 }
 
-function setProgress(text, running) {
+function setProgress(text, running, done) {
   $('progress').textContent = text;
   $('progressBar').classList.toggle('running', !!running);
-  $('progressBar').style.width = running ? '' : (text === '完成' ? '100%' : '0');
+  $('progressBar').style.width = running ? '' : (done ? '100%' : '0');
 }
 
 async function pickFolder(kind, inputId, onPicked) {
   const btn = kind === 'inbox' ? $('pickInbox') : $('pickOutput');
   btn.disabled = true;
-  setProgress('已打开系统目录选择窗口，选好文件夹后点「确定」…', false);
+  setProgress('弹窗已经打开了，选好文件夹点「确定」就行…', false);
   try {
     const r = await api('/api/pick-folder', {
       method: 'POST',
@@ -181,7 +183,7 @@ async function pickFolder(kind, inputId, onPicked) {
       body: JSON.stringify({ for: kind }),
     });
     if (r.error) { setProgress('打不开目录窗口：' + r.error, false); return; }
-    if (r.cancelled || !r.path) { setProgress('已取消选择', false); return; }
+    if (r.cancelled || !r.path) { setProgress('没选文件夹，随时可以再点', false); return; }
     $(inputId).value = r.path;
     await onPicked();
   } catch (err) {
@@ -195,16 +197,16 @@ async function runTranscribe() {
   if (!selectedFile) return;
   const btn = $('runBtn');
   btn.disabled = true;
-  btn.textContent = '转写中…';
-  setProgress('正在抽音轨并转写，长文件需要一点时间', true);
+  btn.textContent = '正在听…';
+  setProgress('正在听这段视频，长一点的要等几分钟，先别关页面…', true);
   try {
     const r = await api('/api/transcribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: selectedFile }),
     });
-    $('srtBox').textContent = r.srt || '（未生成 SRT）';
-    $('txtBox').textContent = r.txt || '（未生成 TXT）';
+    $('srtBox').textContent = r.srt || '（这次没有字幕）';
+    $('txtBox').textContent = r.txt || '（这次没有文字稿）';
     $('jobDir').textContent = r.job_dir || '—';
     $('engineInfo').textContent = r.engine === 'cloud'
       ? `云端 · ${r.cloud_provider || ''}${r.timestamp_precision === 'whole_file' ? ' · 整段时间轴' : ''}`
@@ -214,11 +216,11 @@ async function runTranscribe() {
     $('elapsed').textContent = r.elapsed + ' 秒';
     $('copyBtn').disabled = !r.txt;
     if (r.rewrite) showRewriteState(r.rewrite);
-    setProgress('完成', false);
+    setProgress('稿子好了！右边点「复制文字稿」就能拿走', false, true);
   } catch (err) {
-    setProgress('失败：' + err.message, false);
+    setProgress('没成功：' + err.message, false);
   } finally {
-    btn.textContent = '开始转写';
+    btn.textContent = '开始转文字';
     btn.disabled = !selectedFile;
   }
 }
@@ -230,13 +232,13 @@ $('pickInbox').addEventListener('click', () => pickFolder('inbox', 'cfg_inbox_di
   await saveConfig({ inbox_dir: $('cfg_inbox_dir').value });
   await loadFiles();
   await checkEnv();
-  setProgress('素材目录已更新', false);
+  setProgress('文件夹换好了', false);
 }));
 
 $('pickOutput').addEventListener('click', () => pickFolder('output', 'cfg_output_dir', async () => {
   await saveConfig({ output_dir: $('cfg_output_dir').value });
   await checkEnv();
-  setProgress('输出目录已更新', false);
+  setProgress('保存位置换好了', false);
 }));
 
 $('applyInbox').addEventListener('click', async () => {
@@ -244,7 +246,7 @@ $('applyInbox').addEventListener('click', async () => {
     await saveConfig({ inbox_dir: $('cfg_inbox_dir').value });
     await loadFiles();
     await checkEnv();
-    setProgress('素材目录已更新', false);
+    setProgress('文件夹换好了', false);
   } catch (err) { setProgress('保存失败：' + err.message, false); }
 });
 
@@ -252,7 +254,7 @@ $('applyOutput').addEventListener('click', async () => {
   try {
     await saveConfig({ output_dir: $('cfg_output_dir').value });
     await checkEnv();
-    setProgress('输出目录已更新', false);
+    setProgress('保存位置换好了', false);
   } catch (err) { setProgress('保存失败：' + err.message, false); }
 });
 
@@ -278,8 +280,8 @@ $('applyCloud').addEventListener('click', async () => {
     try {
       await saveConfig();
       setProgress($('cfg_asr_engine').value === 'cloud'
-        ? '已切换到云端引擎（配置好 Base URL / 模型名后生效）'
-        : '已切换回本地引擎，音频不出本机', false);
+        ? '已切到云端：请确认你信任这个服务，音频会传出去'
+        : '已切回自己电脑，音频不外传', false);
     } catch (err) { setProgress('保存失败：' + err.message, false); }
   });
 });
@@ -288,7 +290,7 @@ $('applyCloud').addEventListener('click', async () => {
   $(id).addEventListener('change', async () => {
     try {
       await saveConfig();
-      setProgress('识别设置已保存', false);
+      setProgress('设置已保存', false);
     } catch (err) { setProgress('保存失败：' + err.message, false); }
   });
 });
@@ -299,7 +301,7 @@ function refreshOutputModeUI() {
   const picked = document.querySelector('input[name="cfg_output_mode"]:checked');
   const mode = picked ? picked.value : 'txt_srt';
   const tag = $('srtPaneTag');
-  if (tag) tag.textContent = mode === 'txt' ? 'SRT · 仅预览' : 'SRT';
+  if (tag) tag.textContent = mode === 'txt' ? '字幕 · 仅预览' : '字幕';
 }
 
 document.querySelectorAll('input[name="cfg_output_mode"]').forEach((el) => {
@@ -307,7 +309,7 @@ document.querySelectorAll('input[name="cfg_output_mode"]').forEach((el) => {
     refreshOutputModeUI();
     try {
       await saveConfig();
-      setProgress('产物文件已切换，下次转写生效', false);
+      setProgress('记下了，下次转文字就按这个给', false);
     } catch (err) { setProgress('保存失败：' + err.message, false); }
   });
 });
@@ -318,14 +320,23 @@ $('saveBtn').addEventListener('click', async () => {
     await loadFiles();
     await checkEnv();
     await loadRewriteState();
-    setProgress('全部配置已保存', false);
+    setProgress('都存好了', false);
   } catch (err) {
     $('statusBox').innerHTML = `<div class="bad">保存失败：${err.message}</div>`;
   }
 });
 
 $('checkBtn').addEventListener('click', checkEnv);
-$('copyBtn').addEventListener('click', () => navigator.clipboard.writeText($('txtBox').textContent));
+$('copyBtn').addEventListener('click', async () => {
+  const btn = $('copyBtn');
+  try {
+    await navigator.clipboard.writeText($('txtBox').textContent);
+    btn.textContent = '已复制，去粘贴吧';
+    setTimeout(() => { btn.textContent = '复制文字稿'; }, 2200);
+  } catch (err) {
+    setProgress('复制没成功，可以手动选中右边框里的文字', false);
+  }
+});
 
 // Author card: mock data lives in AUTHOR_INFO at the top of this file.
 $('authorBtn').addEventListener('click', () => {
@@ -353,3 +364,13 @@ document.addEventListener('keydown', (e) => {
     $('fileList').innerHTML = '<div class="empty">后端未连接，请先启动 server.py</div>';
   }
 })();
+
+// Chrome restores radio/input values on reload *after* our first render. Re-sync
+// once the page settles so what the user sees always matches config.json.
+window.addEventListener('load', async () => {
+  try {
+    await loadConfig();
+    refreshEngineUI();
+    refreshOutputModeUI();
+  } catch (err) { /* offline, keep the first render */ }
+});
