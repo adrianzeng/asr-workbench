@@ -2,7 +2,9 @@ const $ = (id) => document.getElementById(id);
 
 const CONFIG_KEYS = [
   'ffmpeg', 'oneasr_cli', 'oneasr_data_root', 'inbox_dir', 'output_dir',
-  'work_dir', 'language', 'asr_model', 'aligner', 'backend', 'port',
+  'work_dir', 'language', 'asr_model', 'aligner', 'backend',
+  'rewrite_engine', 'rewrite_base_url', 'rewrite_api_key', 'rewrite_model',
+  'port',
 ];
 
 async function api(path, options) {
@@ -81,6 +83,24 @@ async function checkEnv() {
   return s;
 }
 
+function showRewriteState(s) {
+  const el = $('rewriteState');
+  if (!el) return;
+  if (s.status === 'off') {
+    el.textContent = '当前：关闭 · 纯本地，不联网';
+    el.style.color = 'var(--ok)';
+  } else {
+    el.textContent = s.configured
+      ? '当前：接口已配置，但实现预留中（不会发起请求）'
+      : '当前：已选接口，尚未填 Base URL / 模型名';
+    el.style.color = 'var(--warn)';
+  }
+}
+
+async function loadRewriteState() {
+  try { showRewriteState(await api('/api/rewrite')); } catch (err) { /* offline */ }
+}
+
 function setProgress(text, running) {
   $('progress').textContent = text;
   $('progressBar').classList.toggle('running', !!running);
@@ -105,6 +125,7 @@ async function runTranscribe() {
     $('txtPath').textContent = r.txt_path || '—';
     $('elapsed').textContent = r.elapsed + ' 秒';
     $('copyBtn').disabled = !r.txt;
+    if (r.rewrite) showRewriteState(r.rewrite);
     setProgress('完成', false);
   } catch (err) {
     setProgress('失败：' + err.message, false);
@@ -132,6 +153,14 @@ $('applyOutput').addEventListener('click', async () => {
   } catch (err) { setProgress('保存失败：' + err.message, false); }
 });
 
+$('applyRewrite').addEventListener('click', async () => {
+  try {
+    await saveConfig();
+    await loadRewriteState();
+    setProgress('改稿引擎预留配置已保存（仍不会联网）', false);
+  } catch (err) { setProgress('保存失败：' + err.message, false); }
+});
+
 ['cfg_backend', 'cfg_asr_model', 'cfg_language', 'cfg_aligner'].forEach((id) => {
   $(id).addEventListener('change', async () => {
     try {
@@ -146,6 +175,7 @@ $('saveBtn').addEventListener('click', async () => {
     await saveConfig();
     await loadFiles();
     await checkEnv();
+    await loadRewriteState();
     setProgress('全部配置已保存', false);
   } catch (err) {
     $('statusBox').innerHTML = `<div class="bad">保存失败：${err.message}</div>`;
@@ -160,6 +190,7 @@ $('copyBtn').addEventListener('click', () => navigator.clipboard.writeText($('tx
     await loadConfig();
     await loadFiles();
     await checkEnv();
+    await loadRewriteState();
   } catch (err) {
     $('envBadge').textContent = '后端未连接';
     $('fileList').innerHTML = '<div class="empty">后端未连接，请先启动 server.py</div>';

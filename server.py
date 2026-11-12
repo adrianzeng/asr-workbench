@@ -4,6 +4,9 @@
 Serves the web UI and runs ffmpeg + OneAsr CLI on files placed in the inbox.
 All external paths come from config.json; nothing here is tied to a
 particular machine, note-taking app, or knowledge base.
+
+The draft-rewrite engine is a reserved extension point (see rewrite.py).
+This version never makes outbound network requests.
 """
 
 from __future__ import annotations
@@ -18,10 +21,16 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+import rewrite
+
 ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
 CONFIG_PATH = ROOT / "config.json"
 EXAMPLE_PATH = ROOT / "config.example.json"
+
+# Sent to the browser instead of the stored value; posting it back keeps the
+# existing key unchanged.
+KEY_MASK = "********"
 
 MEDIA_SUFFIXES = frozenset(
     ".wav .mp3 .flac .m4a .aac .ogg .opus .wma "
@@ -39,6 +48,11 @@ DEFAULTS = {
     "asr_model": "0.6b",
     "aligner": "ctc",
     "backend": "auto",
+    # Reserved: an OpenAI-compatible rewrite engine, off and unimplemented.
+    "rewrite_engine": "off",
+    "rewrite_base_url": "",
+    "rewrite_api_key": "",
+    "rewrite_model": "",
     "port": 8765,
 }
 
@@ -57,6 +71,14 @@ def save_config(cfg: dict) -> None:
     CONFIG_PATH.write_text(
         json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+
+
+def public_config(cfg: dict) -> dict:
+    """Never return a stored API key to the browser in clear text."""
+    out = dict(cfg)
+    if out.get("rewrite_api_key"):
+        out["rewrite_api_key"] = KEY_MASK
+    return out
 
 
 def resolve_path(value: str | Path) -> Path:
@@ -166,6 +188,7 @@ def transcribe(cfg: dict, name: str) -> dict:
         "txt": txt_path.read_text(encoding="utf-8", errors="replace") if txt_path.exists() else "",
         "srt_path": str(srt_path) if srt_path.exists() else "",
         "txt_path": str(txt_path) if txt_path.exists() else "",
+        "rewrite": rewrite.rewrite_status(cfg),
         "log": (run.stdout or "").strip()[-800:],
     }
 
@@ -212,11 +235,13 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             if path == "/api/config":
-                return self._json(load_config())
+                return self._json(public_config(load_config()))
             if path == "/api/status":
                 return self._json(status_report(load_config()))
             if path == "/api/files":
                 return self._json({"files": list_inbox(load_config())})
+            if path == "/api/rewrite":
+                return self._json(rewrite.rewrite_status(load_config()))
             return self._static(path)
         except Exception as exc:
             return self._json({"error": str(exc)}, 500)
@@ -227,11 +252,17 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body()
             if path == "/api/config":
                 cfg = load_config()
-                cfg.update({k: v for k, v in body.items() if k in DEFAULTS})
+                updates = {k: v for k, v in body.items() if k in DEFAULTS}
+                # A masked key coming back from the UI means "keep the stored one".
+                if updates.get("rewrite_api_key") == KEY_MASK:
+                    updates.pop("rewrite_api_key")
+                cfg.update(updates)
                 save_config(cfg)
-                return self._json({"ok": True, "config": cfg})
+                return self._json({"ok": True, "config": public_config(cfg)})
             if path == "/api/transcribe":
                 return self._json(transcribe(load_config(), str(body.get("name", ""))))
+            if path == "/api/rewrite":
+                return self._json(rewrite.rewrite_draft(str(body.get("text", "")), load_config()))
             return self._json({"error": "unknown endpoint"}, 404)
         except Exception as exc:
             return self._json({"error": str(exc)}, 500)
@@ -255,9 +286,11 @@ def main():
         print("[hint] config.json 尚未创建，请在设置页保存一次。")
     port = int(cfg.get("port", 8765))
     report = status_report(cfg)
+    state = rewrite.rewrite_status(cfg)
     print(f"ASR Workbench  ->  http://127.0.0.1:{port}")
     for key, ok in report["checks"].items():
         print(f"  {key:12s} {'OK' if ok else 'MISSING'}")
+    print(f"  rewrite      {state['status']} (reserved, no outbound requests)")
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
 
 

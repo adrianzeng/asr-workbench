@@ -88,14 +88,29 @@
         </div>
 
         <div class="block muted-block">
-          <div class="block-title">改稿引擎 <span class="tag">下一阶段</span></div>
-          <label class="field"><span>模式</span>
-            <select id="rewriteEngine" disabled>
-              <option>关闭（仅本地，不联网）</option>
-              <option>OpenAI 兼容接口 · 待启用</option>
-            </select>
+          <div class="block-title">改稿引擎 <span class="tag">接口预留</span></div>
+          <div class="field-grid">
+            <label class="field"><span>模式</span>
+              <select id="cfg_rewrite_engine">
+                <option value="off">关闭（纯本地，默认）</option>
+                <option value="openai">OpenAI 兼容接口（预留，未启用）</option>
+              </select>
+            </label>
+            <label class="field"><span>模型名</span>
+              <input id="cfg_rewrite_model" type="text" placeholder="例：qwen3-vl-8b / deepseek-chat">
+            </label>
+          </div>
+          <label class="field"><span>Base URL</span>
+            <input id="cfg_rewrite_base_url" type="text" placeholder="例：http://localhost:11434/v1 或云端服务的 /v1">
           </label>
-          <p class="note">规划：填 base_url / API Key / 模型名，接云端或本机 Ollama 把草稿改通顺。启用前界面会明确提示「文稿将发送给该服务」。</p>
+          <label class="field"><span>API Key</span>
+            <input id="cfg_rewrite_api_key" type="password" placeholder="留空即可；仅存本机 config.json，不进仓库">
+          </label>
+          <div class="field-row">
+            <button id="applyRewrite" class="btn small">保存预留配置</button>
+            <span id="rewriteState" class="field-hint">当前：纯本地</span>
+          </div>
+          <p class="note"><strong>本版本只是接口预留，不会发起任何网络请求</strong>，文稿不会离开本机。将来启用时只发送文字稿、不发送音频；同一个口子可接云端（DeepSeek / 通义 / OpenAI），也可接本机 Ollama / LM Studio 跑的模型。</p>
         </div>
       </div>
     </section>

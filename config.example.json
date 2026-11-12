@@ -9,5 +9,9 @@
   "asr_model": "0.6b",
   "aligner": "ctc",
   "backend": "auto",
+  "rewrite_engine": "off",
+  "rewrite_base_url": "",
+  "rewrite_api_key": "",
+  "rewrite_model": "",
   "port": 8765
 }
