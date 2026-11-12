@@ -426,23 +426,15 @@ main { padding: 24px 28px 48px; max-width: 1600px; margin: 0 auto; }
 }
 .author-name { font-size: 17px; font-weight: 700; }
 .author-tagline { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.author-bio { font-size: 13.5px; color: var(--text); margin: 0 0 14px; line-height: 1.8; }
-.author-links { border-top: 1px dashed var(--line-strong); border-bottom: 1px dashed var(--line-strong); padding: 11px 0; margin-bottom: 14px; }
-.author-link { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 3px 0; }
-.author-link span { color: var(--muted); width: 36px; flex: none; }
-.author-link code { font-size: 12.5px; word-break: break-all; }
-.author-qr { display: flex; flex-direction: column; align-items: center; gap: 5px; margin-bottom: 12px; }
+.author-bio { font-size: 13.5px; color: var(--text); margin: 0 0 16px; line-height: 1.8; }
+.author-qr { display: flex; flex-direction: column; align-items: center; gap: 9px; }
 .qr-placeholder {
-  width: 132px; height: 132px; border: 1px dashed var(--line-strong); border-radius: 12px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  color: #b9a396; gap: 2px; background: var(--block);
+  width: 176px; height: 176px; border: 1px solid var(--line); border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff; padding: 8px; box-shadow: var(--shadow-soft);
 }
-.qr-placeholder svg { width: 64px; height: 64px; color: #d8bca9; }
-.qr-placeholder span { font-size: 10.5px; }
-.qr-placeholder img { width: 116px; height: 116px; border-radius: 9px; object-fit: cover; }
-.author-qr-note { font-size: 11.5px; color: var(--muted); margin: 0; }
-.author-demo-note { font-size: 11.5px; color: var(--muted); background: var(--block); border-radius: 8px; padding: 9px 11px; margin: 0; line-height: 1.7; }
-.author-demo-note code { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.qr-placeholder img { width: 100%; height: 100%; border-radius: 8px; object-fit: contain; }
+.author-qr-note { font-size: 12px; color: var(--muted); margin: 0; }
 
 /* ——— Multi-select file list ——— */
 .filelist-foot {

@@ -518,7 +518,7 @@ JOB_MANAGER = jobs.JobManager(transcribe, load_config)
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ASRWorkbench/0.1"
+    server_version = "ASRWorkbench/1.0"
 
     def log_message(self, fmt, *args):
         print(f"[http] {fmt % args}", file=sys.stderr)

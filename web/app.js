@@ -1,16 +1,13 @@
 const $ = (id) => document.getElementById(id);
 
-// —— 作者信息（演示数据）————————————————————————————————
-// 发布前把下面每一项替换成你自己的资料。qr 字段填二维码图片的文件名，
-// 图片放到 web/ 目录即可（例：'author-qr.png'）；留空则显示占位图形。
+// —— 作者信息 —————————————————————————————————
+// 文字在下面改；微信二维码图片放在 web/ 目录，qr 填文件名即可。
+// 卡片里只放二维码，不放微信号 / 邮箱 / 主页。
 const AUTHOR_INFO = {
   name: '糕头',
   tagline: 'AI × 自媒体 · 把工具做成普通人能用的样子',
-  bio: '一个用 AI 工具做自媒体的独立创作者。这个转写工作台是我自己日常在用的，开源出来希望帮刚开始做内容的你省点时间。',
-  wechat: 'demo-wechat-id',
-  email: 'demo@example.com',
-  site: 'https://example.com',
-  qr: '', // 例：'author-qr.png'；留空显示占位
+  bio: '一个用 AI 工具做自媒体的独立创作者。这个转写工作台是我自己日常在用的，开发出来希望帮刚开始做内容的你省点时间。',
+  qr: 'author-qr.png',
 };
 
 const CONFIG_KEYS = [
@@ -170,17 +167,8 @@ function showAuthorInfo() {
   $('authorName').textContent = AUTHOR_INFO.name;
   $('authorTagline').textContent = AUTHOR_INFO.tagline;
   $('authorBio').textContent = AUTHOR_INFO.bio;
-  $('authorWechat').textContent = AUTHOR_INFO.wechat;
-  $('authorEmail').textContent = AUTHOR_INFO.email;
-  $('authorSite').textContent = AUTHOR_INFO.site;
   $('authorAvatar').textContent = (AUTHOR_INFO.name || '作').slice(0, 1);
-  if (AUTHOR_INFO.qr) {
-    const img = document.createElement('img');
-    img.src = AUTHOR_INFO.qr;
-    img.alt = '作者二维码';
-    $('authorQr').innerHTML = '';
-    $('authorQr').appendChild(img);
-  }
+  if (AUTHOR_INFO.qr) $('authorQrImg').src = AUTHOR_INFO.qr;
 }
 
 async function loadRewriteState() {
