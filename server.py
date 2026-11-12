@@ -11,6 +11,7 @@ This version never makes outbound network requests.
 
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
 import shutil
@@ -56,6 +57,13 @@ DEFAULTS = {
     "port": 8765,
 }
 
+# Whitelisted titles for the native folder picker. No user-supplied text is
+# ever interpolated into a PowerShell / AppleScript command.
+FOLDER_PICK_TITLES = {
+    "inbox": "选择素材目录",
+    "output": "选择输出目录",
+}
+
 
 def load_config() -> dict:
     cfg = dict(DEFAULTS)
@@ -93,6 +101,75 @@ def find_binary(value: str) -> str | None:
     if p.is_file():
         return str(p)
     return shutil.which(value)
+
+
+def pick_folder(kind: str = "") -> dict:
+    """Open the OS-native folder picker and return the chosen absolute path.
+
+    Uses only OS-bundled commands: Windows PowerShell (WinForms
+    FolderBrowserDialog), macOS osascript, or zenity on Linux. This keeps the
+    project free of third-party Python packages and GUI toolkits.
+    """
+    title = FOLDER_PICK_TITLES.get(str(kind), "选择文件夹")
+    if sys.platform == "win32":
+        # -EncodedCommand takes UTF-16LE base64, which avoids all quoting and
+        # console-code-page problems with Chinese titles and folder names.
+        script = f"""
+$ProgressPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.Application]::EnableVisualStyles()
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+$d.Description = '{title}'
+$d.ShowNewFolderButton = $true
+$d.RootFolder = [System.Environment+SpecialFolder]::MyComputer
+if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    Write-Output $d.SelectedPath
+}}
+$d.Dispose()
+"""
+        encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+        cmd = ["powershell", "-NoProfile", "-STA", "-EncodedCommand", encoded]
+    elif sys.platform == "darwin":
+        safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
+        cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{safe_title}")']
+    else:
+        zenity = shutil.which("zenity")
+        if not zenity:
+            return {"cancelled": False,
+                    "error": "当前系统没有可用的图形目录选择器（Linux 需安装 zenity），请手动填写路径。"}
+        cmd = [zenity, "--file-selection", "--directory", f"--title={title}"]
+
+    try:
+        run = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return {"cancelled": True, "note": "选择超时，已取消"}
+    except FileNotFoundError as exc:
+        return {"cancelled": False, "error": f"找不到系统目录选择器：{exc}"}
+    except Exception as exc:
+        return {"cancelled": False, "error": f"打开目录选择器失败：{exc}"}
+
+    lines = [
+        line.strip() for line in (run.stdout or "").splitlines()
+        if line.strip() and not line.lstrip().startswith(("#<", "<Objs", "<Obj "))
+    ]
+    chosen = lines[-1] if lines else ""
+    if not chosen:
+        # Cancelling yields no stdout on every platform (osascript also exits
+        # non-zero with "User canceled" on stderr).
+        return {"cancelled": True}
+    trimmed = chosen.rstrip("/\\")
+    return {"path": str(Path(trimmed or chosen)), "cancelled": False}
+
+
+def safe_folder_name(stem: str) -> str:
+    """Turn a media filename stem into one safe directory name."""
+    cleaned = "".join(c for c in stem if c not in '<>:"|?*' and ord(c) >= 32)
+    cleaned = cleaned.strip().rstrip(". ")
+    return cleaned or "untitled"
 
 
 def status_report(cfg: dict) -> dict:
@@ -146,7 +223,9 @@ def transcribe(cfg: dict, name: str) -> dict:
     work = resolve_path(cfg.get("work_dir", "./work"))
     output = resolve_path(cfg.get("output_dir", "./output"))
     work.mkdir(parents=True, exist_ok=True)
-    output.mkdir(parents=True, exist_ok=True)
+    # Every media file gets its own folder: output/<stem>/<stem>.srt|txt|timeline.json
+    job_dir = output / safe_folder_name(src.stem)
+    job_dir.mkdir(parents=True, exist_ok=True)
     wav = work / f"{src.stem}.wav"
 
     # Convert to 16 kHz mono PCM WAV ourselves. OneAsr copies a compliant WAV
@@ -166,7 +245,7 @@ def transcribe(cfg: dict, name: str) -> dict:
         "--backend", cfg.get("backend", "auto"),
         "--asr", cfg.get("asr_model", "0.6b"),
         "--aligner", cfg.get("aligner", "ctc"),
-        "--txt", "--output-dir", str(output),
+        "--txt", "--output-dir", str(job_dir),
     ]
     data_root = str(cfg.get("oneasr_data_root", "")).strip()
     if data_root:
@@ -180,10 +259,11 @@ def transcribe(cfg: dict, name: str) -> dict:
     if run.returncode != 0:
         raise RuntimeError(f"转写失败：{(run.stderr or run.stdout).strip()[-1200:]}")
 
-    srt_path = output / f"{src.stem}.srt"
-    txt_path = output / f"{src.stem}.txt"
+    srt_path = job_dir / f"{src.stem}.srt"
+    txt_path = job_dir / f"{src.stem}.txt"
     return {
         "elapsed": elapsed,
+        "job_dir": str(job_dir),
         "srt": srt_path.read_text(encoding="utf-8", errors="replace") if srt_path.exists() else "",
         "txt": txt_path.read_text(encoding="utf-8", errors="replace") if txt_path.exists() else "",
         "srt_path": str(srt_path) if srt_path.exists() else "",
@@ -259,6 +339,8 @@ class Handler(BaseHTTPRequestHandler):
                 cfg.update(updates)
                 save_config(cfg)
                 return self._json({"ok": True, "config": public_config(cfg)})
+            if path == "/api/pick-folder":
+                return self._json(pick_folder(str(body.get("for", ""))))
             if path == "/api/transcribe":
                 return self._json(transcribe(load_config(), str(body.get("name", ""))))
             if path == "/api/rewrite":

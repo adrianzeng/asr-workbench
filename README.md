@@ -11,7 +11,7 @@
 
 - **独立**：自带前端与极薄后端，不依赖任何外部业务系统。
 - **零耦合**：不读写你的笔记库、灵感库、Obsidian 仓库或任何其它目录；所有路径都在设置页里配置，默认只碰项目自己的 `inbox/`、`work/`、`output/`。
-- **零第三方 Python 依赖**：后端只用 Python 标准库。
+- **零第三方 Python 依赖**：后端只用 Python 标准库；目录选择框调用系统自带命令，不装 GUI 库。
 - **离线**：模型下载完成后，转写过程可完全断网。**当前版本不发起任何外部网络请求。**
 
 目前只包含「听写 + 打时间轴 + 导出」。语音助手（实时麦克风与朗读）不在此版本；「改稿引擎」只预留了 OpenAI 兼容接口（见 5.1），**默认关闭、不生效、不联网**。
@@ -29,6 +29,7 @@
 | 对齐权重 | omniASR-CTC-300M-v2 | 打时间轴（约 1.3 GB） |
 
 > 后端不调用任何云端 API。以上组件全部在本机。
+> `1.7B` 听写模型是可选档位，需要单独下载；`0.6B` 与 CTC 对齐模型是跑通链路的最小组合。
 
 ---
 
@@ -129,11 +130,11 @@ python server.py
 | `ffmpeg` | ffmpeg 可执行文件名或完整路径 | `ffmpeg` |
 | `oneasr_cli` | `oneasr-cli.exe` / `oneasr-cli` 的完整路径 | 空（必填） |
 | `oneasr_data_root` | 传给 OneAsr `--data-root` 的路径；留空则用 OneAsr 默认 | 空 |
-| `inbox_dir` | 放待转写音视频的目录 | `./inbox` |
-| `output_dir` | SRT / TXT 产物目录 | `./output` |
+| `inbox_dir` | 放待转写音视频的目录，可在「① 进件」点按钮选 | `./inbox` |
+| `output_dir` | 产物根目录；每个素材会在下面单独建同名子文件夹 | `./output` |
 | `work_dir` | 中间 WAV 目录 | `./work` |
 | `language` | 识别语言，如 `zh` / `yue` / `en` | `zh` |
-| `asr_model` | `0.6b` 或 `1.7b` | `0.6b` |
+| `asr_model` | `0.6b` 或 `1.7b`（后者需先下载权重） | `0.6b` |
 | `aligner` | `ctc` 或 `qwen` | `ctc` |
 | `backend` | `auto` / `cpu` / `gpu`。没有独显的普通笔记本选 `cpu`，0.6B 模型照样能跑，只是慢一些 | `auto` |
 | `rewrite_engine` | `off`（默认）/ `openai`。**接口预留，当前不生效** | `off` |
@@ -161,10 +162,38 @@ python server.py
 
 ## 6. 使用
 
-1. 把音视频文件放进 `inbox/`（或在设置页把 `inbox_dir` 指向别的目录）。
-2. 网页「① 进件」里刷新，选中文件，点「开始转写」。
+1. 把音视频文件放进 `inbox/`；也可以在「① 进件」点 **「选择文件夹…」** 把 `inbox_dir` 指到本机任意目录，或手填路径后点「应用并刷新」。
+2. 文件列表里选中一个，点「开始转写」。
 3. 「② 草稿 ↔ 成稿」并排显示带时间轴的 SRT 与纯文稿 TXT。
-4. 「③ 出口」显示产物路径，可直接打开 `output/` 取用。
+4. 「③ 出口」显示本次产物目录与文件路径。
+
+**产物按素材分文件夹存放**，不会混在一起：
+
+```
+output/
+├── demo/
+│   ├── demo.srt
+│   ├── demo.txt
+│   └── demo.timeline.json
+└── interview/
+    ├── interview.srt
+    ├── interview.txt
+    └── interview.timeline.json
+```
+
+输出根目录同样可以用「③ 出口」里的「选择文件夹…」改到别处。
+
+### 6.1 「选择文件夹」是怎么工作的
+
+浏览器出于安全限制拿不到本机绝对路径，所以这个按钮由后端调用系统自带的图形对话框：
+
+| 系统 | 调用 | 需要额外安装吗 |
+|---|---|---|
+| Windows | PowerShell 的 `FolderBrowserDialog` | 不用，Win10/11 自带 |
+| macOS | `osascript` 的 `choose folder` | 不用，系统自带 |
+| Linux | `zenity --file-selection --directory` | 需要 `zenity`（没有就手填路径） |
+
+项目因此**不需要任何第三方 Python 包或 GUI 库**。对话框由运行 `server.py` 的那个进程弹出，可能出现在浏览器窗口后面——点完按钮没反应时看一眼任务栏。选完点「确定」会自动填回输入框并保存生效；点「取消」或 3 分钟不操作，原路径不变。该接口只监听 `127.0.0.1`，不对外网开放。
 
 支持常见音视频格式：wav / mp3 / m4a / flac / aac / ogg / mp4 / mkv / mov / webm / avi 等。
 
@@ -174,7 +203,7 @@ python server.py
 python server.py --once demo.mp4
 ```
 
-参数是 `inbox_dir` 里的文件名，产物同样落到 `output_dir`。这条路径不需要常驻服务。
+参数是 `inbox_dir` 里的文件名，产物同样落到 `output_dir/<素材名>/`。这条路径不需要常驻服务。
 
 ---
 
@@ -195,7 +224,11 @@ OneAsr 在部分 Windows 环境下，由自身进程启动 ffmpeg 子进程会�
 
 **`can_start.ok = false`** — 模型没下齐。重新执行 `oneasr-cli download --model 0.6b`，或用 `status --json` 看缺哪个文件。
 
+**选了 1.7B 后转写失败** — 1.7B 是另一份独立权重，默认便携包不含，需先单独下载。
+
 **`python` 跳商店 / 版本不对** — 见第 3.1 节的 App 执行别名说明。
+
+**点「选择文件夹…」没弹出窗口** — 窗口可能在浏览器后面，看一眼任务栏；Linux 需先装 `zenity`；若服务是在无图形会话的后台 / CI 里启动的，改用普通终端启动 `python server.py`，或直接手填路径。
 
 **转写结果没有标点** — 检查 `language` 是否与素材语言一致；粤语素材要选 `yue` 而不是 `zh`。
 
@@ -213,10 +246,12 @@ python -c "import server; server.transcribe(server.load_config(), 'demo.mp4')"  
 ```
 ASR_Workbench/
 ├── server.py            # 标准库 HTTP 后端
+├── rewrite.py           # 改稿引擎扩展点（预留）
 ├── web/                 # 原生 HTML / CSS / JS 前端
 ├── inbox/               # 待转写素材（默认）
 ├── work/                # 中间 WAV
-├── output/              # SRT / TXT 产物（默认）
+├── output/              # 产物根目录（默认）
+│   └── <素材名>/        # 每次转写一个文件夹：.srt / .txt / .timeline.json
 ├── config.example.json  # 配置样例
 ├── requirements.txt     # 无第三方依赖
 ├── LICENSE              # MIT

@@ -28,7 +28,11 @@
         <div class="block">
           <div class="block-title">路径设置</div>
           <label class="field"><span>素材目录</span><input id="cfg_inbox_dir" type="text" placeholder="./inbox"></label>
-          <div class="field-row"><button id="applyInbox" class="btn small">应用并刷新</button><span class="field-hint">相对路径以项目根目录为准</span></div>
+          <div class="field-row">
+            <button id="pickInbox" class="btn small">选择文件夹…</button>
+            <button id="applyInbox" class="btn small">应用并刷新</button>
+          </div>
+          <p class="note">点「选择文件夹…」会打开系统自带的目录选择窗口，选完自动填回并生效；也可以直接手填路径。相对路径以项目根目录为准。</p>
         </div>
         <div class="block">
           <div class="block-title">待转写文件<button id="refreshBtn" class="link-btn">刷新</button></div>
@@ -57,8 +61,8 @@
             </label>
             <label class="field"><span>听写模型</span>
               <select id="cfg_asr_model">
-                <option value="0.6b">0.6B（轻，CPU 可跑）</option>
-                <option value="1.7b">1.7B（更准，吃资源）</option>
+                <option value="0.6b">0.6B（已安装，CPU 可跑）</option>
+                <option value="1.7b">1.7B（未安装，需先下载）</option>
               </select>
             </label>
             <label class="field"><span>语言</span>
@@ -127,10 +131,15 @@
             <label><input type="checkbox" checked disabled> SRT 字幕</label>
             <label><input type="checkbox" checked disabled> TXT 文稿</label>
           </div>
-          <button id="applyOutput" class="btn small">应用</button>
+          <div class="field-row">
+            <button id="pickOutput" class="btn small">选择文件夹…</button>
+            <button id="applyOutput" class="btn small">应用</button>
+          </div>
+          <p class="note">每个素材会在输出目录下单独建一个<strong>同名文件夹</strong>，SRT / TXT / 时间轴都放在里面，不会混在一起。</p>
         </div>
         <div class="block">
           <div class="block-title">本次产物</div>
+          <div class="kv"><span>产物目录</span><code id="jobDir">—</code></div>
           <div class="kv"><span>SRT</span><code id="srtPath">—</code></div>
           <div class="kv"><span>TXT</span><code id="txtPath">—</code></div>
           <div class="kv"><span>耗时</span><code id="elapsed">—</code></div>

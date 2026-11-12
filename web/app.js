@@ -44,10 +44,12 @@ async function loadConfig() {
 }
 
 function renderFiles(files) {
+  // A changed inbox invalidates whatever was selected before.
+  selectedFile = null;
+  $('runBtn').disabled = true;
   const box = $('fileList');
   if (!files.length) {
     box.innerHTML = '<div class="empty">素材目录里还没有音视频文件</div>';
-    $('runBtn').disabled = true;
     return;
   }
   box.innerHTML = files.map((f) => {
@@ -107,6 +109,27 @@ function setProgress(text, running) {
   $('progressBar').style.width = running ? '' : (text === '完成' ? '100%' : '0');
 }
 
+async function pickFolder(kind, inputId, onPicked) {
+  const btn = kind === 'inbox' ? $('pickInbox') : $('pickOutput');
+  btn.disabled = true;
+  setProgress('已打开系统目录选择窗口，选好文件夹后点「确定」…', false);
+  try {
+    const r = await api('/api/pick-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ for: kind }),
+    });
+    if (r.error) { setProgress('打不开目录窗口：' + r.error, false); return; }
+    if (r.cancelled || !r.path) { setProgress('已取消选择', false); return; }
+    $(inputId).value = r.path;
+    await onPicked();
+  } catch (err) {
+    setProgress('打不开目录窗口：' + err.message, false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function runTranscribe() {
   if (!selectedFile) return;
   const btn = $('runBtn');
@@ -121,6 +144,7 @@ async function runTranscribe() {
     });
     $('srtBox').textContent = r.srt || '（未生成 SRT）';
     $('txtBox').textContent = r.txt || '（未生成 TXT）';
+    $('jobDir').textContent = r.job_dir || '—';
     $('srtPath').textContent = r.srt_path || '—';
     $('txtPath').textContent = r.txt_path || '—';
     $('elapsed').textContent = r.elapsed + ' 秒';
@@ -138,10 +162,24 @@ async function runTranscribe() {
 $('refreshBtn').addEventListener('click', loadFiles);
 $('runBtn').addEventListener('click', runTranscribe);
 
+$('pickInbox').addEventListener('click', () => pickFolder('inbox', 'cfg_inbox_dir', async () => {
+  await saveConfig({ inbox_dir: $('cfg_inbox_dir').value });
+  await loadFiles();
+  await checkEnv();
+  setProgress('素材目录已更新', false);
+}));
+
+$('pickOutput').addEventListener('click', () => pickFolder('output', 'cfg_output_dir', async () => {
+  await saveConfig({ output_dir: $('cfg_output_dir').value });
+  await checkEnv();
+  setProgress('输出目录已更新', false);
+}));
+
 $('applyInbox').addEventListener('click', async () => {
   try {
     await saveConfig({ inbox_dir: $('cfg_inbox_dir').value });
     await loadFiles();
+    await checkEnv();
     setProgress('素材目录已更新', false);
   } catch (err) { setProgress('保存失败：' + err.message, false); }
 });
@@ -149,6 +187,7 @@ $('applyInbox').addEventListener('click', async () => {
 $('applyOutput').addEventListener('click', async () => {
   try {
     await saveConfig({ output_dir: $('cfg_output_dir').value });
+    await checkEnv();
     setProgress('输出目录已更新', false);
   } catch (err) { setProgress('保存失败：' + err.message, false); }
 });
