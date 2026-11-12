@@ -29,7 +29,17 @@ async function api(path, options) {
   return data;
 }
 
-let selectedFile = null;
+const selectedFiles = new Set();
+let pollTimer = null;
+let batchRunning = false;
+let lastDoneCount = -1;
+let viewingName = null;   // null = keep showing the newest finished draft
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
 
 function collectConfig() {
   const payload = {};
@@ -66,26 +76,37 @@ async function loadConfig() {
 
 function renderFiles(files) {
   // A changed inbox invalidates whatever was selected before.
-  selectedFile = null;
-  $('runBtn').disabled = true;
+  selectedFiles.clear();
+  viewingName = null;
   const box = $('fileList');
   if (!files.length) {
     box.innerHTML = '<div class="empty">素材目录里还没有音视频文件</div>';
+    updateSelectionUI();
     return;
   }
   box.innerHTML = files.map((f) => {
     const size = (f.size / 1048576).toFixed(1) + ' MB';
-    return `<label><input type="radio" name="media" value="${encodeURIComponent(f.name)}">` +
-           `<span>${f.name}</span><span class="size">${size}</span></label>`;
+    return `<label><input type="checkbox" name="media" value="${encodeURIComponent(f.name)}">` +
+           `<span>${escapeHtml(f.name)}</span><span class="size">${size}</span></label>`;
   }).join('');
   box.querySelectorAll('input[name="media"]').forEach((el) => {
     el.addEventListener('change', () => {
-      selectedFile = decodeURIComponent(el.value);
-      $('runBtn').disabled = false;
-      box.querySelectorAll('label').forEach((l) => l.classList.remove('selected'));
-      el.closest('label').classList.add('selected');
+      const name = decodeURIComponent(el.value);
+      if (el.checked) selectedFiles.add(name); else selectedFiles.delete(name);
+      el.closest('label').classList.toggle('selected', el.checked);
+      updateSelectionUI();
     });
   });
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  const n = selectedFiles.size;
+  $('selectedCount').textContent = n ? `已选 ${n} 个文件` : '还没选文件';
+  const btn = $('runBtn');
+  btn.textContent = batchRunning ? '这一批正在跑…'
+    : (n ? `开始转文字（${n} 个）` : '先选文件');
+  btn.disabled = batchRunning || n === 0;
 }
 
 async function loadFiles() {
@@ -193,40 +214,160 @@ async function pickFolder(kind, inputId, onPicked) {
   }
 }
 
-async function runTranscribe() {
-  if (!selectedFile) return;
-  const btn = $('runBtn');
-  btn.disabled = true;
-  btn.textContent = '正在听…';
-  setProgress('正在听这段视频，长一点的要等几分钟，先别关页面…', true);
-  try {
-    const r = await api('/api/transcribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: selectedFile }),
+function showResult(r) {
+  $('srtBox').textContent = r.srt || '（这次没有字幕）';
+  $('txtBox').textContent = r.txt || '（这次没有文字稿）';
+  $('jobDir').textContent = r.job_dir || '—';
+  $('engineInfo').textContent = r.engine === 'cloud'
+    ? `云端 · ${r.cloud_provider || ''}${r.timestamp_precision === 'whole_file' ? ' · 整段时间轴' : ''}`
+    : '本地模型';
+  $('srtPath').textContent = r.srt_path || (r.output_mode === 'txt' ? '按设置未输出' : '—');
+  $('txtPath').textContent = r.txt_path || '—';
+  $('elapsed').textContent = (r.elapsed ?? '—') + ' 秒';
+  $('copyBtn').disabled = !r.txt;
+  if (r.rewrite) showRewriteState(r.rewrite);
+}
+
+const STATUS_TEXT = {
+  pending: '排队中', running: '正在转', done: '已完成',
+  error: '没成功', cancelled: '已跳过',
+};
+
+function renderQueue(s) {
+  const box = $('queueBox');
+  if (!s.items || !s.items.length) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const settled = s.items.filter((i) => ['done', 'error', 'cancelled'].includes(i.status)).length;
+  $('queueSummary').textContent = s.running
+    ? `第 ${Math.min(settled + 1, s.total)} / ${s.total} 个 · ${s.current || '准备中'}`
+    : (s.cancelled ? `已停止 · 完成 ${s.done} 个`
+      : `这一批跑完了 · 完成 ${s.done} 个${s.failed ? ` · 失败 ${s.failed} 个` : ''}`);
+  $('queueBarFill').style.width = (s.total ? (settled / s.total * 100) : 0) + '%';
+  $('cancelJobsBtn').disabled = !s.running;
+  $('queueList').innerHTML = s.items.map((i) => {
+    const state = i.status === 'done' ? `完成 ${i.elapsed}s`
+      : i.status === 'error' ? `失败：${escapeHtml(i.error || '')}`
+        : (STATUS_TEXT[i.status] || i.status);
+    const clickable = i.status === 'done' ? ' clickable' : '';
+    return `<div class="queue-row q-${i.status}${clickable}" data-name="${encodeURIComponent(i.name)}" title="${escapeHtml(i.name)}">` +
+           `<span class="qdot"></span><span class="qname">${escapeHtml(i.name)}</span>` +
+           `<span class="qstate">${state}</span></div>`;
+  }).join('');
+  $('queueList').querySelectorAll('.queue-row.clickable').forEach((el) => {
+    el.addEventListener('click', () => {
+      viewingName = decodeURIComponent(el.dataset.name);
+      loadJobResult(viewingName);
     });
-    $('srtBox').textContent = r.srt || '（这次没有字幕）';
-    $('txtBox').textContent = r.txt || '（这次没有文字稿）';
-    $('jobDir').textContent = r.job_dir || '—';
-    $('engineInfo').textContent = r.engine === 'cloud'
-      ? `云端 · ${r.cloud_provider || ''}${r.timestamp_precision === 'whole_file' ? ' · 整段时间轴' : ''}`
-      : '本地模型';
-    $('srtPath').textContent = r.srt_path || (r.output_mode === 'txt' ? '按设置未输出' : '—');
-    $('txtPath').textContent = r.txt_path || '—';
-    $('elapsed').textContent = r.elapsed + ' 秒';
-    $('copyBtn').disabled = !r.txt;
-    if (r.rewrite) showRewriteState(r.rewrite);
-    setProgress('稿子好了！右边点「复制文字稿」就能拿走', false, true);
+  });
+}
+
+async function loadJobResult(name) {
+  try {
+    const r = await api('/api/jobs/result?name=' + encodeURIComponent(name));
+    showResult(r);
+    setProgress(`正在看「${name}」的稿子`, false, true);
   } catch (err) {
-    setProgress('没成功：' + err.message, false);
-  } finally {
-    btn.textContent = '开始转文字';
-    btn.disabled = !selectedFile;
+    setProgress('这份稿子打不开：' + err.message, false);
   }
 }
 
+async function pollJobs() {
+  let s;
+  try { s = await api('/api/jobs'); }
+  catch (err) { stopPolling(); setProgress('进度获取失败：' + err.message, false, true); return; }
+  renderQueue(s);
+  batchRunning = s.running;
+  updateSelectionUI();
+  if (s.done > lastDoneCount) {
+    lastDoneCount = s.done;
+    if (viewingName === null) {
+      const latest = [...s.items].reverse().find((i) => i.status === 'done');
+      if (latest) loadJobResult(latest.name);
+    }
+  }
+  if (!s.running) {
+    stopPolling();
+    setProgress(s.cancelled ? '已停止，做完的稿子都还在'
+      : '这一批跑完了！点列表里「已完成」的那行看稿子', false, true);
+  } else {
+    setProgress(`排队转写中 · 已完成 ${s.done} / ${s.total} 个，关掉浏览器也会继续跑`, true);
+  }
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(pollJobs, 1500);
+  pollJobs();
+}
+
+async function startBatch() {
+  const names = [...selectedFiles];
+  if (!names.length || batchRunning) return;
+  lastDoneCount = -1;
+  viewingName = null;
+  setProgress('正在把这一批排上队…', true);
+  try {
+    await api('/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names }),
+    });
+    batchRunning = true;
+    updateSelectionUI();
+    startPolling();
+  } catch (err) {
+    setProgress('没能开始：' + err.message, false);
+  }
+}
+
+async function restoreJobs() {
+  try {
+    const s = await api('/api/jobs');
+    if (!s.items || !s.items.length) return;
+    renderQueue(s);
+    batchRunning = s.running;
+    updateSelectionUI();
+    if (s.running) {
+      lastDoneCount = s.done;
+      startPolling();
+    } else {
+      const latest = [...s.items].reverse().find((i) => i.status === 'done');
+      if (latest) loadJobResult(latest.name);
+    }
+  } catch (err) { /* no backend, keep the first render */ }
+}
+
 $('refreshBtn').addEventListener('click', loadFiles);
-$('runBtn').addEventListener('click', runTranscribe);
+$('runBtn').addEventListener('click', startBatch);
+
+$('selectAllBtn').addEventListener('click', () => {
+  $('fileList').querySelectorAll('input[name="media"]').forEach((el) => {
+    el.checked = true;
+    selectedFiles.add(decodeURIComponent(el.value));
+    el.closest('label').classList.add('selected');
+  });
+  updateSelectionUI();
+});
+
+$('clearSelBtn').addEventListener('click', () => {
+  $('fileList').querySelectorAll('input[name="media"]').forEach((el) => {
+    el.checked = false;
+    el.closest('label').classList.remove('selected');
+  });
+  selectedFiles.clear();
+  updateSelectionUI();
+});
+
+$('cancelJobsBtn').addEventListener('click', async () => {
+  try {
+    await api('/api/jobs/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    setProgress('正在收尾：当前这个做完就停', true);
+  } catch (err) { setProgress('停止没成功：' + err.message, false); }
+});
 
 $('pickInbox').addEventListener('click', () => pickFolder('inbox', 'cfg_inbox_dir', async () => {
   await saveConfig({ inbox_dir: $('cfg_inbox_dir').value });
@@ -359,6 +500,7 @@ document.addEventListener('keydown', (e) => {
     await loadFiles();
     await checkEnv();
     await loadRewriteState();
+    await restoreJobs();
   } catch (err) {
     $('envBadge').textContent = '后端未连接';
     $('fileList').innerHTML = '<div class="empty">后端未连接，请先启动 server.py</div>';

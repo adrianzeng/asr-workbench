@@ -21,9 +21,10 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import cloud_asr
+import jobs
 import rewrite
 
 ROOT = Path(__file__).resolve().parent
@@ -511,6 +512,11 @@ def transcribe(cfg: dict, name: str) -> dict:
     }
 
 
+# One queue per server process. Config is snapshotted when a batch is submitted,
+# so changing settings mid-run cannot desynchronise files in the same batch.
+JOB_MANAGER = jobs.JobManager(transcribe, load_config)
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "ASRWorkbench/0.1"
 
@@ -560,6 +566,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"files": list_inbox(load_config())})
             if path == "/api/rewrite":
                 return self._json(rewrite.rewrite_status(load_config()))
+            if path == "/api/jobs":
+                return self._json(JOB_MANAGER.snapshot())
+            if path == "/api/jobs/result":
+                name = parse_qs(urlparse(self.path).query).get("name", [""])[0]
+                result = JOB_MANAGER.result(name)
+                if result is None:
+                    return self._json({"error": "这份稿子还没做好，或者不在这批里"}, 404)
+                return self._json(result)
             return self._static(path)
         except Exception as exc:
             return self._json({"error": str(exc)}, 500)
@@ -582,6 +596,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(pick_folder(str(body.get("for", ""))))
             if path == "/api/transcribe":
                 return self._json(transcribe(load_config(), str(body.get("name", ""))))
+            if path == "/api/jobs":
+                raw = body.get("names")
+                if not isinstance(raw, list) or not raw:
+                    return self._json({"error": "请先选至少一个素材"}, 400)
+                # Whitelist against the real inbox listing: no path traversal.
+                allowed = {item["name"] for item in list_inbox(load_config())}
+                names = []
+                for value in raw:
+                    name = str(value)
+                    if name in allowed and name not in names:
+                        names.append(name)
+                if not names:
+                    return self._json({"error": "选中的文件不在素材目录里，点「刷新列表」再试"}, 400)
+                snapshot, err = JOB_MANAGER.submit(names)
+                if err:
+                    return self._json({"error": err}, 409)
+                return self._json(snapshot)
+            if path == "/api/jobs/cancel":
+                return self._json({"ok": JOB_MANAGER.cancel(),
+                                   "note": "正在跑的这一个会做完，剩下的跳过"})
             if path == "/api/rewrite":
                 return self._json(rewrite.rewrite_draft(str(body.get("text", "")), load_config()))
             return self._json({"error": "unknown endpoint"}, 404)
