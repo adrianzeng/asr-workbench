@@ -135,6 +135,7 @@ python server.py
 | `language` | 识别语言，如 `zh` / `yue` / `en` | `zh` |
 | `asr_model` | `0.6b` 或 `1.7b` | `0.6b` |
 | `aligner` | `ctc` 或 `qwen` | `ctc` |
+| `backend` | `auto` / `cpu` / `gpu`。没有独显的普通笔记本选 `cpu`，0.6B 模型照样能跑，只是慢一些 | `auto` |
 | `port` | 本地服务端口 | `8765` |
 
 所有目录都可以填绝对路径；留相对路径时以项目根目录为基准。
