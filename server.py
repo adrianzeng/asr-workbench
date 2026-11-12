@@ -38,6 +38,7 @@ DEFAULTS = {
     "language": "zh",
     "asr_model": "0.6b",
     "aligner": "ctc",
+    "backend": "auto",
     "port": 8765,
 }
 
@@ -140,7 +141,7 @@ def transcribe(cfg: dict, name: str) -> dict:
     cmd = [
         cli, "transcribe", "--input", str(wav),
         "--language", cfg.get("language", "zh"),
-        "--backend", "auto",
+        "--backend", cfg.get("backend", "auto"),
         "--asr", cfg.get("asr_model", "0.6b"),
         "--aligner", cfg.get("aligner", "ctc"),
         "--txt", "--output-dir", str(output),

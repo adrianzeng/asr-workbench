@@ -8,5 +8,6 @@
   "language": "zh",
   "asr_model": "0.6b",
   "aligner": "ctc",
+  "backend": "auto",
   "port": 8765
 }
