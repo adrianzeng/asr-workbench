@@ -479,23 +479,47 @@ main { padding: 24px 28px 48px; max-width: 1600px; margin: 0 auto; }
 .q-done .qstate { color: var(--ok); }
 .q-error .qstate { color: #c0392b; }
 
-/* ——— Language / mixed-speech note ——— */
-.lang-note { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; overflow: hidden; }
-.lang-note > summary {
+/* ——— Language / mixed-speech / model notes (all folded away by default) ——— */
+.lang-note, .model-note {
+  margin-top: 12px; border: 1px solid var(--line);
+  border-radius: 10px; background: #fff; overflow: hidden;
+}
+.lang-note > summary, .model-note > summary {
   cursor: pointer; padding: 9px 12px; font-size: 12.5px; font-weight: 700;
   color: var(--accent-deep); list-style: none; display: flex; align-items: center; gap: 8px;
 }
-.lang-note > summary::-webkit-details-marker { display: none; }
-.lang-note > summary::before {
+.lang-note > summary:hover, .model-note > summary:hover { background: var(--accent-soft); }
+.lang-note > summary::-webkit-details-marker, .model-note > summary::-webkit-details-marker { display: none; }
+.lang-note > summary::before, .model-note > summary::before {
   content: '?'; width: 17px; height: 17px; border-radius: 50%; flex: none;
   background: var(--accent-soft); display: inline-flex; align-items: center; justify-content: center;
   font-size: 11px;
 }
-.lang-note > summary span { margin-left: auto; font-weight: 400; font-size: 11px; color: var(--muted); }
+.lang-note > summary span, .model-note > summary span {
+  margin-left: auto; font-weight: 400; font-size: 11px; color: var(--muted);
+}
 .lang-body { padding: 2px 13px 12px; }
 .lang-body p { font-size: 12.5px; line-height: 1.8; color: #6b5143; margin: 9px 0 0; }
 .lang-body strong { color: var(--accent-deep); }
 .lang-body .lang-tip { background: var(--accent-soft); border-radius: 7px; padding: 8px 10px; }
+
+.mini-table { width: 100%; border-collapse: collapse; margin: 9px 0 2px; font-size: 12px; }
+.mini-table th, .mini-table td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; line-height: 1.65; }
+.mini-table th { background: var(--accent-soft); color: #5c463a; font-weight: 700; }
+.mini-table td:first-child { color: var(--muted); white-space: nowrap; width: 76px; }
+
+.lang-list { margin-top: 11px; border: 1px dashed var(--line-strong); border-radius: 8px; background: var(--block); }
+.lang-list > summary {
+  cursor: pointer; padding: 7px 11px; font-size: 12px; font-weight: 700;
+  color: var(--accent-deep); list-style: none;
+}
+.lang-list > summary::-webkit-details-marker { display: none; }
+.lang-list > summary::before { content: '▸'; margin-right: 7px; }
+.lang-list[open] > summary::before { content: '▾'; }
+.lang-list-body { padding: 0 11px 11px; }
+.lang-list-body .lang-group-title { font-size: 12px; font-weight: 700; color: #5c463a; margin: 10px 0 3px; }
+.lang-list-body .lang-tags { font-size: 12px; line-height: 1.95; color: #6b5143; margin: 0; }
+.lang-list-body .lang-mini { font-size: 11.5px; color: var(--muted); line-height: 1.75; margin: 10px 0 0; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
