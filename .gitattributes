@@ -1,0 +1,5 @@
+# Windows batch files need CRLF; shell entry points must stay LF
+# (CRLF breaks the #!/bin/bash shebang on macOS/Linux).
+*.bat      text eol=crlf
+*.command  text eol=lf
+*.sh       text eol=lf
