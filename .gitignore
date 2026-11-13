@@ -24,6 +24,12 @@ Thumbs.db
 # Logs
 *.log
 
+# V1.1: portable runtime payload, build inputs and resumable downloads
+runtime/
+release_assets/
+*.part
+SHA256SUMS.txt
+
 # Model weights and packaged builds must never be committed.
 models/
 dist/

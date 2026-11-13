@@ -7,10 +7,12 @@ closing the window stops everything. No packages, no PATH edits, no installs.
 """
 from __future__ import annotations
 
+import json
 import os
 import socket
 import sys
 import threading
+import urllib.request
 import webbrowser
 from pathlib import Path
 
@@ -36,6 +38,7 @@ if sys.version_info < (3, 10):
     sys.exit(1)
 
 try:
+    import first_run  # noqa: E402
     import server  # noqa: E402  (module import has no side effects)
 except Exception as exc:
     print(f"  启动文件没能读全：{exc}")
@@ -49,6 +52,17 @@ def port_open(port: int) -> bool:
         return sock.connect_ex(("127.0.0.1", port)) == 0
 
 
+def probe_owner(port: int) -> dict | None:
+    """Ask who is listening; only reuse the port if it is our own instance."""
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/status", timeout=1
+        ) as res:
+            return json.loads(res.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
 def open_browser(url: str) -> None:
     if os.environ.get("ASR_NO_BROWSER") == "1":
         return
@@ -60,27 +74,42 @@ def open_browser(url: str) -> None:
 
 
 def main() -> int:
+    # Creates config.json with relative paths on a brand-new machine.
+    first_run.bootstrap()
     cfg = server.load_config()
     port = int(cfg.get("port", 8765))
     url = f"http://127.0.0.1:{port}"
 
     print("=" * 52)
-    print("   ASR Workbench · 把视频里说的话变成文字稿")
+    print("   ASR Workbench · 把音视频里说的话变成文字稿")
     print("=" * 52)
 
     if port_open(port):
-        print(f"  服务已经在运行了，帮你打开页面：")
-        print(f"  {url}")
-        open_browser(url)
-        print("  这个窗口可以关掉，服务会继续在后台跑着。")
-        print("=" * 52)
-        return 0
+        owner = probe_owner(port)
+        if owner and owner.get("app_id") == "asr-workbench":
+            print(f"  服务已经在运行了，帮你打开页面：")
+            print(f"  {url}")
+            open_browser(url)
+            print("  这个窗口可以关掉，服务会继续跑着。")
+            print("=" * 52)
+            return 0
+        # Some other program owns the port: move to a free one without
+        # writing anything back into config.json.
+        for candidate in range(port + 1, port + 21):
+            if not port_open(candidate):
+                port = candidate
+                break
+        else:
+            print("  8765 附近的端口都被占用了，请先关掉占用端口的程序。")
+            return 1
+        os.environ["ASR_PORT_OVERRIDE"] = str(port)
+        url = f"http://127.0.0.1:{port}"
 
     print("  正在启动，稍等一下…")
     report = server.status_report(cfg)
-    if not report.get("ready"):
-        print("  提示：环境还没配齐，页面里会告诉你缺什么，")
-        print("        展开最下面的「高级设置」照着填就行。")
+    if not report.get("models_ready"):
+        print("  第一次使用要下载约 2.8 GB 模型（国内源，只此一次）。")
+        print("  下载期间别关这个黑窗口；关了下次打开会接着下。")
 
     threading.Timer(1.2, open_browser, args=(url,)).start()
     print(f"  启动好了：{url}")

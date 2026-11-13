@@ -130,7 +130,7 @@
               <label class="field local-only"><span>听写模型</span>
                 <select id="cfg_asr_model">
                   <option value="0.6b">0.6B（轻，CPU 可跑）</option>
-                  <option value="1.7b">1.7B（更准，吃资源）</option>
+                  <option value="1.7b">1.7B（更准 · 需另下约 4GB）</option>
                 </select>
               </label>
               <label class="field local-only"><span>说的哪种话</span>
@@ -291,6 +291,21 @@
         <label class="field"><span>中间目录</span><input id="cfg_work_dir" type="text"></label>
         <label class="field"><span>服务端口</span><input id="cfg_port" type="number"></label>
       </div>
+        <details class="fold model-fold">
+          <summary>模型与下载源 <span>只在换镜像时才需要</span></summary>
+          <div class="fold-body">
+            <div id="modelList" class="model-list">正在检查模型…</div>
+            <div class="field-row"><button id="modelRecheckBtn" class="btn small">重新检查</button></div>
+            <label class="field"><span>下载源</span>
+              <select id="cfg_download_source">
+                <option value="modelscope">国内 ModelScope（默认）</option>
+                <option value="custom">自定义镜像 / 网盘直链</option>
+              </select>
+            </label>
+            <label class="field"><span>自定义镜像地址</span><input id="cfg_download_base_url" type="text" placeholder="例：https://你的直链前缀/asr"></label>
+            <p class="note">默认走国内 ModelScope 直链，不用填任何东西。以后你把整包放到网盘，把直链前缀填上面、下载源选「自定义镜像」即可，代码一行都不用改。目录结构是 <code>前缀/模型目录名/文件名</code>。</p>
+          </div>
+        </details>
       <div class="row">
         <button id="saveBtn" class="btn primary slim">保存全部配置</button>
         <button id="checkBtn" class="btn ghost slim">检查环境</button>
@@ -319,6 +334,27 @@
       </div>
       <p class="author-qr-note">微信扫码，加我好友</p>
     </div>
+  </div>
+</div>
+<div id="setupModal" class="setup-modal hidden">
+  <div class="setup-card">
+    <div class="setup-icon" aria-hidden="true"><span></span><span></span><span></span></div>
+    <h2 id="setupTitle">第一次用，先准备一下</h2>
+    <p id="setupIntro">要下载约 2.8 GB 的听写模型（国内源，只此一次）。下完之后断网也能用。</p>
+    <div id="setupDisk" class="setup-disk"></div>
+    <button id="dlStartBtn" class="btn primary">开始准备</button>
+    <div id="dlPanel" class="dl-panel hidden">
+      <div class="progress-track"><div id="dlProgressBar"></div></div>
+      <div class="dl-line"><span id="dlProgressText">准备中…</span><span id="dlPercent">0%</span></div>
+      <div id="dlDetail" class="dl-detail"></div>
+      <div id="dlFiles" class="dl-files"></div>
+    </div>
+    <div id="dlError" class="dl-error hidden"></div>
+    <div id="dlActions" class="dl-actions hidden">
+      <button id="dlRetryBtn" class="btn small">重试</button>
+      <button id="dlCancelBtn" class="btn small">停止</button>
+    </div>
+    <p class="setup-foot">下载期间别关黑色窗口。关了下次打开会接着下，已经下好的不会丢。</p>
   </div>
 </div>
 <script src="app.js"></script>

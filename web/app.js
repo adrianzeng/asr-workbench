@@ -13,7 +13,7 @@ const AUTHOR_INFO = {
 const CONFIG_KEYS = [
   'ffmpeg', 'oneasr_cli', 'oneasr_data_root', 'inbox_dir', 'output_dir',
   'work_dir', 'language', 'asr_engine', 'asr_model', 'aligner', 'backend',
-  'output_mode',
+  'output_mode', 'download_source', 'download_base_url',
   'cloud_asr_base_url', 'cloud_asr_api_key', 'cloud_asr_model',
   'rewrite_engine', 'rewrite_base_url', 'rewrite_api_key', 'rewrite_model',
   'port',
@@ -329,6 +329,177 @@ async function restoreJobs() {
   } catch (err) { /* no backend, keep the first render */ }
 }
 
+// ——— V1.1 首次准备 / 模型下载 ———
+let modelPollTimer = null;
+let pendingModels = ['0.6b', 'ctc'];
+let pendingActivate = false;
+let previousAsrModel = '0.6b';
+
+function fmtBytes(n) {
+  if (!n) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0; let v = Number(n);
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+  return v.toFixed(i >= 2 ? 1 : 0) + ' ' + units[i];
+}
+
+function fmtDuration(sec) {
+  if (!sec || sec < 0) return '一会儿';
+  if (sec < 60) return `约 ${Math.ceil(sec)} 秒`;
+  return `约 ${Math.ceil(sec / 60)} 分钟`;
+}
+
+async function renderModelList() {
+  try {
+    const d = await api('/api/models');
+    $('modelList').innerHTML = d.models.map((m) =>
+      `<div class="model-row ${m.ready ? '' : 'missing'}">` +
+      `<span class="qdot" style="background:${m.ready ? 'var(--ok)' : '#d9c8bb'}"></span>` +
+      `<b>${escapeHtml(m.label)}</b>` +
+      `<span class="mstate">${m.ready ? '已就绪' : '需补 ' + fmtBytes(m.remaining_bytes ?? m.size_bytes)}</span></div>`
+    ).join('');
+  } catch (err) {
+    $('modelList').textContent = '检查失败：' + err.message;
+  }
+}
+
+function showSetup(title, intro) {
+  if (title) $('setupTitle').textContent = title;
+  if (intro) $('setupIntro').textContent = intro;
+  $('setupModal').classList.remove('hidden');
+}
+
+async function startModelDownload(models, activate) {
+  if (!models || !models.length) return;
+  pendingModels = models;
+  pendingActivate = activate;
+  $('dlError').classList.add('hidden');
+  $('dlActions').classList.add('hidden');
+  $('dlStartBtn').disabled = true;
+  $('dlStartBtn').textContent = '正在准备…';
+  showSetup(
+    activate ? '这个模型还没下载' : '第一次用，先准备一下',
+    activate
+      ? '1.7B 更准，但还要再下约 4 GB。下完会自动刷新并切过去。'
+      : '要下载约 2.8 GB 的听写模型（国内源，只此一次）。下完之后断网也能用。'
+  );
+  try {
+    await api('/api/models/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ models, activate }),
+    });
+    $('dlPanel').classList.remove('hidden');
+    startModelPolling();
+  } catch (err) {
+    $('dlError').textContent = err.message;
+    $('dlError').classList.remove('hidden');
+    $('dlStartBtn').disabled = false;
+    $('dlStartBtn').textContent = '重试';
+    $('dlActions').classList.remove('hidden');
+  }
+}
+
+function stopModelPolling() {
+  if (modelPollTimer) { clearInterval(modelPollTimer); modelPollTimer = null; }
+}
+
+function startModelPolling() {
+  stopModelPolling();
+  modelPollTimer = setInterval(pollModels, 1000);
+  pollModels();
+}
+
+function renderDownload(s) {
+  $('dlProgressBar').style.width = (s.percent || 0) + '%';
+  $('dlPercent').textContent = (s.percent || 0).toFixed(0) + '%';
+  const done = s.files.filter((f) => ['done', 'skipped'].includes(f.state)).length;
+  $('dlProgressText').textContent =
+    `已完成 ${done} / ${s.file_count} 个文件 · ${fmtBytes(s.downloaded_bytes)} / ${fmtBytes(s.total_bytes)}`;
+  $('dlDetail').textContent = s.current_file
+    ? `${s.current_file} · ${fmtBytes(s.speed_bytes_per_sec)}/s · 剩余 ${fmtDuration(s.eta_seconds)}`
+    : (s.message || '');
+  $('dlFiles').innerHTML = s.files.map((f) => {
+    const ok = ['done', 'skipped'].includes(f.state);
+    return `<div class="dl-file ${ok ? 'done' : ''}"><span>${ok ? '✓' : '·'}</span>` +
+           `<b>${escapeHtml(f.model)}</b><span>${escapeHtml(f.path)}</span></div>`;
+  }).join('');
+}
+
+async function pollModels() {
+  let s;
+  try { s = await api('/api/models/status'); }
+  catch (err) { return; }
+  if (s.state === 'idle') { stopModelPolling(); return; }
+  renderDownload(s);
+  if (['checking', 'downloading', 'verifying'].includes(s.state)) return;
+  stopModelPolling();
+  if (s.state === 'completed') {
+    $('dlStartBtn').textContent = '准备好了';
+    $('dlProgressText').textContent = '下载完成，正在打开工作台…';
+    $('dlActions').classList.add('hidden');
+    setTimeout(() => location.reload(), 900);
+  } else {
+    $('dlStartBtn').disabled = false;
+    $('dlStartBtn').textContent = '重试';
+    $('dlError').textContent = s.message || '下载没成功，点「重试」再试一次。';
+    $('dlError').classList.remove('hidden');
+    $('dlActions').classList.remove('hidden');
+  }
+}
+
+async function setupCheck() {
+  if (modelPollTimer) return;          // 已经有下载在跑，交给进度轮询
+  let d;
+  try { d = await api('/api/setup'); }
+  catch (err) { return; }
+  previousAsrModel = $('cfg_asr_model').value || '0.6b';
+  if (!d.needs_setup) return;
+  if (d.disk_needed_bytes > d.disk_free_bytes) {
+    $('setupDisk').textContent = '磁盘空间不够：先清理一下，或把整个文件夹搬到 D 盘（不用重装、不用重下）。';
+  } else if (d.estimated_total_bytes) {
+    $('setupDisk').textContent =
+      `约 ${fmtBytes(d.estimated_total_bytes)} · 视网速 5–40 分钟 · 只此一次`;
+  }
+  showSetup(undefined, d.message);
+  const missing = d.models
+    .filter((m) => m.need_download && ['0.6b', 'ctc'].includes(m.id))
+    .map((m) => m.id);
+  pendingModels = missing.length ? missing : ['0.6b', 'ctc'];
+  if (d.auto_download && missing.length) {
+    setTimeout(() => startModelDownload(missing, false), 800);
+  }
+}
+
+async function restoreModels() {
+  try {
+    const s = await api('/api/models/status');
+    if (['checking', 'downloading', 'verifying'].includes(s.state)) {
+      showSetup(undefined, '下载还在继续，可以接着看进度。');
+      $('dlPanel').classList.remove('hidden');
+      $('dlStartBtn').disabled = true;
+      $('dlStartBtn').textContent = '下载中…';
+      startModelPolling();
+    }
+  } catch (err) { /* offline, keep the first render */ }
+}
+
+$('dlStartBtn').addEventListener('click', () => startModelDownload(pendingModels, pendingActivate));
+$('dlRetryBtn').addEventListener('click', () => startModelDownload(pendingModels, pendingActivate));
+$('dlCancelBtn').addEventListener('click', async () => {
+  try {
+    await api('/api/models/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (pendingActivate) $('cfg_asr_model').value = previousAsrModel;
+  } catch (err) { /* ignore */ }
+});
+$('modelRecheckBtn').addEventListener('click', renderModelList);
+['cfg_download_source', 'cfg_download_base_url'].forEach((id) => {
+  $(id).addEventListener('change', async () => {
+    try { await saveConfig(); setProgress('下载源已保存', false); }
+    catch (err) { setProgress('保存失败：' + err.message, false); }
+  });
+});
+
 $('refreshBtn').addEventListener('click', loadFiles);
 $('runBtn').addEventListener('click', startBatch);
 
@@ -415,7 +586,23 @@ $('applyCloud').addEventListener('click', async () => {
   });
 });
 
-['cfg_backend', 'cfg_asr_model', 'cfg_language', 'cfg_aligner'].forEach((id) => {
+$('cfg_asr_model').addEventListener('change', async () => {
+  if ($('cfg_asr_model').value === '1.7b') {
+    try {
+      const d = await api('/api/setup');
+      const m = d.models.find((x) => x.id === '1.7b');
+      if (m && !m.ready) {
+        startModelDownload(['1.7b'], true);
+        return;               // 下载完成后由后端写回，不提前保存
+      }
+    } catch (err) { /* 查不到就照常保存 */ }
+  }
+  previousAsrModel = $('cfg_asr_model').value;
+  try { await saveConfig(); setProgress('设置已保存', false); }
+  catch (err) { setProgress('保存失败：' + err.message, false); }
+});
+
+['cfg_backend', 'cfg_language', 'cfg_aligner'].forEach((id) => {
   $(id).addEventListener('change', async () => {
     try {
       await saveConfig();
@@ -489,6 +676,9 @@ document.addEventListener('keydown', (e) => {
     await checkEnv();
     await loadRewriteState();
     await restoreJobs();
+    await renderModelList();
+    await restoreModels();
+    await setupCheck();
   } catch (err) {
     $('envBadge').textContent = '后端未连接';
     $('fileList').innerHTML = '<div class="empty">后端未连接，请先启动 server.py</div>';

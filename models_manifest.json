@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "note": "Pinned revisions and SHA-256 digests. Do not edit by hand.",
+  "default_models": [
+    "0.6b",
+    "ctc"
+  ],
+  "models": {
+    "0.6b": {
+      "label": "0.6B 轻量听写模型",
+      "dir": "Qwen3-ASR-0.6B-hf",
+      "owner": "Qwen",
+      "repo": "Qwen3-ASR-0.6B-hf",
+      "files": [
+        {
+          "path": ".gitattributes",
+          "size": 2129,
+          "sha256": "0aefab68978f25d82421f2039b23711121eb624b23fac3376f941aab386c05be",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        },
+        {
+          "path": "README.md",
+          "size": 16538,
+          "sha256": "742006d0f99ce6475b1c5e7b66e4a2f166cce836dd7ce3d7f20707252859195a",
+          "revision": "005b749cd1566dc579fe0238316087e2fc1945c0"
+        },
+        {
+          "path": "chat_template.jinja",
+          "size": 1434,
+          "sha256": "f50e6b694fbf4a683206e37869990d68333fe95d285730f084c838a34b0d98c2",
+          "revision": "005b749cd1566dc579fe0238316087e2fc1945c0"
+        },
+        {
+          "path": "config.json",
+          "size": 2398,
+          "sha256": "9eecf6f1b383e343889c2e6010e632590fa57d4bc678e151c7d6a160a0dfb04a",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        },
+        {
+          "path": "configuration.json",
+          "size": 63,
+          "sha256": "0657e261c850f8d368b4da948a15279089f3484d40c152cc07fb4e9d1727ca3d",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        },
+        {
+          "path": "generation_config.json",
+          "size": 165,
+          "sha256": "9939fc9388b79bd70757f938b87381e817173d6a6158f5af6506c0b73e775c3c",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        },
+        {
+          "path": "model.safetensors",
+          "size": 1564928088,
+          "sha256": "d3f212dd20abecd315d830bc54ae3865e56ebfc3276484e57b771288ba27fd35",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        },
+        {
+          "path": "processor_config.json",
+          "size": 487,
+          "sha256": "bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        },
+        {
+          "path": "tokenizer.json",
+          "size": 11429653,
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "size": 998,
+          "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11",
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+        }
+      ],
+      "total_bytes": 1576381953
+    },
+    "1.7b": {
+      "label": "1.7B 更准听写模型",
+      "dir": "Qwen3-ASR-1.7B-hf",
+      "owner": "Qwen",
+      "repo": "Qwen3-ASR-1.7B-hf",
+      "files": [
+        {
+          "path": ".gitattributes",
+          "size": 2129,
+          "sha256": "0aefab68978f25d82421f2039b23711121eb624b23fac3376f941aab386c05be",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        },
+        {
+          "path": "README.md",
+          "size": 16538,
+          "sha256": "427b9a6a4a32477e9df8790ef92f5cbcde790ee148ee5dd8c36f77d9556998a2",
+          "revision": "fbdf079ca130130ace97d61dde535b3bebada633"
+        },
+        {
+          "path": "chat_template.jinja",
+          "size": 1434,
+          "sha256": "f50e6b694fbf4a683206e37869990d68333fe95d285730f084c838a34b0d98c2",
+          "revision": "fbdf079ca130130ace97d61dde535b3bebada633"
+        },
+        {
+          "path": "config.json",
+          "size": 2399,
+          "sha256": "117ac8e63e2af7cae3665e5a632d6eb03f5f384915519ceb6403c15ec6533f63",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        },
+        {
+          "path": "configuration.json",
+          "size": 63,
+          "sha256": "0657e261c850f8d368b4da948a15279089f3484d40c152cc07fb4e9d1727ca3d",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        },
+        {
+          "path": "generation_config.json",
+          "size": 165,
+          "sha256": "9939fc9388b79bd70757f938b87381e817173d6a6158f5af6506c0b73e775c3c",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        },
+        {
+          "path": "model.safetensors",
+          "size": 4076193080,
+          "sha256": "2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        },
+        {
+          "path": "processor_config.json",
+          "size": 487,
+          "sha256": "bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        },
+        {
+          "path": "tokenizer.json",
+          "size": 11429653,
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "size": 998,
+          "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11",
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+        }
+      ],
+      "total_bytes": 4087646946
+    },
+    "ctc": {
+      "label": "CTC 时间轴对齐模型",
+      "dir": "omniASR-CTC-300M-v2-hf",
+      "owner": "eclipse005",
+      "repo": "omniASR-CTC-300M-v2",
+      "files": [
+        {
+          "path": "config.json",
+          "size": 1968,
+          "sha256": "a78b50a52e4e067bd5e502c33447dc556db1dd08f5286bb5ece49b61d522b194",
+          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "size": 187,
+          "sha256": "06cd0728688a41b0d4ff87a7eb08479b2fdae9a9521fb1c328bc8c4230a4f6f7",
+          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "size": 93,
+          "sha256": "d9a757b89920ad7c0cd8329f2320709943c21d96c1ab7bce56c258930f6b07b7",
+          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "size": 233,
+          "sha256": "413ddc3802665f3b11a96161b565e38644750fdb592c325564ddd75d6cf6b8bf",
+          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052"
+        },
+        {
+          "path": "vocab.json",
+          "size": 152362,
+          "sha256": "4568040d826f2584ca2b76ed10c679dd051e7e1df9742acb5285370cd16a331f",
+          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052"
+        },
+        {
+          "path": "model.safetensors",
+          "size": 1303988352,
+          "sha256": "606d849a55b746e698976b8a979b597f4902be7a799ecf723dd283d6210e5871",
+          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052"
+        }
+      ],
+      "total_bytes": 1304143195
+    }
+  }
+}

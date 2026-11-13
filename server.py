@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import os
 import shutil
 import subprocess
 import sys
@@ -24,7 +25,10 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import cloud_asr
+import downloader
+import first_run
 import jobs
+import models_runtime
 import rewrite
 
 ROOT = Path(__file__).resolve().parent
@@ -42,9 +46,10 @@ MEDIA_SUFFIXES = frozenset(
 )
 
 DEFAULTS = {
-    "ffmpeg": "ffmpeg",
-    "oneasr_cli": "",
-    "oneasr_data_root": "",
+    # V1.1: everything the tool needs lives inside this one folder.
+    "ffmpeg": "./runtime/oneasr/bin/ffmpeg.exe",
+    "oneasr_cli": "./runtime/oneasr/oneasr-cli.exe",
+    "oneasr_data_root": "./runtime/oneasr",
     "inbox_dir": "./inbox",
     "output_dir": "./output",
     "work_dir": "./work",
@@ -60,6 +65,15 @@ DEFAULTS = {
     # Whatever is not kept is moved to work/kept/<stem>/ rather than deleted, so
     # subtitles can be re-rendered later without transcribing again.
     "output_mode": "txt_srt",
+    # Model download sources. Nothing here points at a specific netdisk: set
+    # download_source=custom and download_base_url to use your own mirror.
+    "download_source": "modelscope",
+    "download_url_template": (
+        "https://modelscope.cn/models/{owner}/{repo}/resolve/{revision}/{file}"
+    ),
+    "download_base_url": "",
+    "oneasr_release_url": "https://github.com/eclipse005/OneAsr/releases",
+    "auto_download": True,
     # Optional OpenAI-compatible cloud transcription (POST {base_url}/audio/transcriptions).
     # Off by default; audio is only uploaded when this engine is selected.
     "cloud_asr_base_url": "",
@@ -116,6 +130,10 @@ def find_binary(value: str) -> str | None:
     if not value:
         return None
     p = Path(value).expanduser()
+    # Resolve relative binary paths against the project root, NOT the process
+    # CWD: the launcher may be started from anywhere (or from a different drive).
+    if not p.is_absolute():
+        p = ROOT / p
     if p.is_file():
         return str(p)
     return shutil.which(value)
@@ -362,6 +380,41 @@ def park_unwanted(job_dir: Path, work: Path, stem: str, wanted: dict) -> str:
     return str(parked_dir) if moved else ""
 
 
+def models_ready_quick(cfg: dict) -> bool:
+    """Cheap readiness check (size only) for the frequently polled status API."""
+    try:
+        manifest = downloader.load_manifest()
+        root = resolve_path(cfg.get("oneasr_data_root", "./runtime/oneasr"))
+        for key in models_runtime.DEFAULT_MODELS:
+            entry = manifest["models"][key]
+            folder = root / "models" / entry["dir"]
+            for file in entry["files"]:
+                path = folder / file["path"]
+                if not path.is_file() or path.stat().st_size != file["size"]:
+                    return False
+        return True
+    except Exception:
+        return False
+
+
+def setup_report(cfg: dict) -> dict:
+    """Full first-run picture for the setup wizard (sha256 verified)."""
+    check = MODEL_MANAGER.check()
+    port = int(os.environ.get("ASR_PORT_OVERRIDE") or cfg.get("port", 8765))
+    return {
+        **check,
+        "first_run": first_run.is_first_run(),
+        "config_exists": CONFIG_PATH.exists(),
+        "python_ok": True,
+        "offline_ready": check["cli_ok"] and not check["needs_setup"],
+        "auto_download": bool(cfg.get("auto_download", True)),
+        "version": "1.1",
+        "app_id": "asr-workbench",
+        "runtime_root": str(first_run.RUNTIME_DIR),
+        "port": port,
+    }
+
+
 def status_report(cfg: dict) -> dict:
     ffmpeg = find_binary(cfg.get("ffmpeg", ""))
     cli = find_binary(cfg.get("oneasr_cli", ""))
@@ -373,14 +426,24 @@ def status_report(cfg: dict) -> dict:
         "inbox": inbox.is_dir(),
         "output": output.is_dir(),
     }
+    models_ok = models_ready_quick(cfg)
+    ready = all(checks.values()) and models_ok
+    port = int(os.environ.get("ASR_PORT_OVERRIDE") or cfg.get("port", 8765))
     return {
         "checks": checks,
         "ffmpeg_path": ffmpeg or "",
         "oneasr_cli_path": cli or "",
         "inbox_path": str(inbox),
         "output_path": str(output),
-        "ready": all(checks.values()),
-        "hint": "" if all(checks.values()) else "请在设置页补全路径，见 README 第 3 节",
+        "ready": ready,
+        "hint": "" if ready else "第一次使用请先完成模型准备（页面会自动提示）",
+        "models_ready": models_ok,
+        "can_start": bool(cli) and models_ok,
+        "setup": {"needs_setup": not ready},
+        "version": "1.1",
+        "app_id": "asr-workbench",
+        "runtime_root": str(first_run.RUNTIME_DIR),
+        "port": port,
     }
 
 
@@ -515,6 +578,7 @@ def transcribe(cfg: dict, name: str) -> dict:
 # One queue per server process. Config is snapshotted when a batch is submitted,
 # so changing settings mid-run cannot desynchronise files in the same batch.
 JOB_MANAGER = jobs.JobManager(transcribe, load_config)
+MODEL_MANAGER = models_runtime.ModelManager(load_config, save_config)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -566,6 +630,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"files": list_inbox(load_config())})
             if path == "/api/rewrite":
                 return self._json(rewrite.rewrite_status(load_config()))
+            if path == "/api/setup":
+                return self._json(setup_report(load_config()))
+            if path == "/api/models":
+                return self._json(MODEL_MANAGER.check())
+            if path == "/api/models/status":
+                return self._json(MODEL_MANAGER.snapshot())
             if path == "/api/jobs":
                 return self._json(JOB_MANAGER.snapshot())
             if path == "/api/jobs/result":
@@ -591,7 +661,30 @@ class Handler(BaseHTTPRequestHandler):
                         updates.pop(key_field)
                 cfg.update(updates)
                 save_config(cfg)
-                return self._json({"ok": True, "config": public_config(cfg)})
+                chosen = str(cfg.get("asr_model", "0.6b"))
+                check = MODEL_MANAGER.check()
+                missing = [m["id"] for m in check["models"]
+                           if m["id"] == chosen and not m["ready"]]
+                return self._json({
+                    "ok": True,
+                    "config": public_config(cfg),
+                    "needs_download": bool(missing),
+                    "missing_models": missing,
+                })
+            if path == "/api/models/download":
+                raw = body.get("models")
+                if not isinstance(raw, list) or not raw:
+                    return self._json({"error": "请先选要下载的模型"}, 400)
+                snapshot, err = MODEL_MANAGER.start(
+                    [str(x) for x in raw], bool(body.get("activate", False))
+                )
+                if err:
+                    code = 409 if "已经有一批" in err else 400
+                    return self._json({"error": err}, code)
+                return self._json(snapshot)
+            if path == "/api/models/cancel":
+                return self._json({"ok": MODEL_MANAGER.cancel(),
+                                   "note": "已下的会留着，下次接着下"})
             if path == "/api/pick-folder":
                 return self._json(pick_folder(str(body.get("for", ""))))
             if path == "/api/transcribe":
@@ -624,6 +717,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    # Idempotent: creates config.json with project-relative paths on a fresh
+    # install and makes sure runtime/oneasr/{models,output,runs} exist.
+    first_run.bootstrap()
     cfg = load_config()
     # One-shot mode: no long-running server, no browser needed.
     # Useful on terminals that restrict child processes of background services.
@@ -637,9 +733,7 @@ def main():
             sys.exit(1)
         print(f"完成：{result['srt_path']}  /  {result['txt_path']}  ({result['elapsed']} 秒)")
         return
-    if not CONFIG_PATH.exists() and EXAMPLE_PATH.exists():
-        print("[hint] config.json 尚未创建，请在设置页保存一次。")
-    port = int(cfg.get("port", 8765))
+    port = int(os.environ.get("ASR_PORT_OVERRIDE") or cfg.get("port", 8765))
     report = status_report(cfg)
     state = rewrite.rewrite_status(cfg)
     print(f"ASR Workbench  ->  http://127.0.0.1:{port}")
