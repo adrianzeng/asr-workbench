@@ -1,6 +1,7 @@
 # ASR Workbench
 
-> **版本：V1.0** — 本地优先的语音转写工作台。含批量排队、混合语言说明、一键启动、音视频通吃。
+> **版本：V1.1（发布候选 · 供安装测试）** — 一个 zip 解压双击就能用：程序随包，模型首次启动自动下载（国内源 + 真实进度条 + 断点续传）。
+> V1.0 的收口版仍保留在 `main` 分支与 `v1.0` 标签。
 
 一个独立、本地优先、零耦合的语音转写工作台。
 
@@ -10,20 +11,23 @@
 
 ---
 
-## 0. 先启动起来（双击就行，不用输命令）
+## 0. 先启动起来（三步，不用输命令）
 
 | 你的电脑 | 双击哪个文件 |
 |---|---|
-| Windows | **`启动工作台.bat`** |
-| macOS | **`启动工作台.command`** |
-| Linux | 终端里执行 `bash 启动工作台.command` |
+| Windows（首版主打） | `先装 Python（双击）.exe` → 再 `启动工作台.bat` |
+| macOS / Linux | 先装好 Python 3.12+，终端执行 `bash 启动工作台.command` |
 
-双击后会弹出一个黑色小窗口，**别关它**；浏览器会自动打开 <http://127.0.0.1:8765>。窗口开着就表示服务在跑；用完直接关掉那个窗口，服务就停了。
+1. 把整个 `ASR_Workbench` 文件夹解压到固定位置（路径里尽量别带中文和空格）。
+2. **第一次**双击 `先装 Python（双击）.exe`，一路下一步，务必勾选 `Add python.exe to PATH`。只装这一次。
+3. 双击 `启动工作台.bat`。弹出的黑色小窗口**别关**（它就是开关），浏览器自动打开 <http://127.0.0.1:8765>。
+4. 第一次会弹出「先准备一下」，点「开始准备」→ 自动下约 2.8GB 听写模型（国内 ModelScope 源、真实百分比、断点续传、逐文件校验）→ 下完自动刷新进主界面。**联网一次，之后断网也能用。**
 
-- 黑窗口里说「没找到能用的 Python」：按窗口里写的 4 步装一次 Python，安装时记得勾 **Add Python to PATH**，装完重新双击即可。除此之外不用装别的东西。
-- 已经启动过、又双击了一遍也没关系：它会认出「服务已经在运行」，只把页面再打开一次，不会重复启动。
-- 浏览器没自动弹出来：自己把 `http://127.0.0.1:8765` 复制到浏览器地址栏。
-- 想从命令行启动也可以：`python start.py`；老办法 `python server.py` 同样有效。
+- 黑窗口关掉＝服务停；重新双击即可，下载会接着上次继续，已下的不丢。
+- 已经开着又双击一遍：只把页面再打开一次，不会重复启动。
+- 浏览器没弹出来：把 `http://127.0.0.1:8765` 复制到地址栏。
+- 断网、磁盘不够、端口被占、校验失败：页面会说人话并给「重试」。
+- 详细图文见 `使用说明.txt`；从源码运行用 `python start.py`（`python server.py` 也仍有效）。
 
 ---
 
@@ -38,105 +42,64 @@
 
 ---
 
-## 2. 环境要求（装一次就好）
+## 2. 环境要求（包里已经带了，不用自己装）
 
-| 组件 | 版本 | 用途 |
+| 组件 | 谁提供 | 说明 |
 |---|---|---|
-| Python | **3.12 或更高** | 运行本地后端（仅标准库） |
-| ffmpeg | 任意较新版本 | 把音视频抽成 16 kHz 单声道 PCM WAV |
-| OneAsr | v1.4.1 或更高 | 本地 ASR 与 CTC 对齐，出 SRT / TXT |
-| ASR 权重 | Qwen3-ASR-0.6B-hf | 听写模型（约 1.5 GB） |
-| 对齐权重 | omniASR-CTC-300M-v2 | 打时间轴（约 1.3 GB） |
+| Python 3.12+ | 包内官方安装器 | 第一次双击装一次，安装时勾 `Add python.exe to PATH` |
+| ffmpeg | 包内 `runtime/oneasr/bin/ffmpeg.exe` | GPLv3 essentials build，合规依据见 `THIRD_PARTY_NOTICES.md` |
+| OneAsr v1.4.1 | 包内 `runtime/oneasr/` | MIT，上游便携包原样随附 |
+| 0.6B 听写 + CTC 对齐权重 | **首次启动自动下载** | 约 2.88GB，ModelScope 国内源，逐文件 sha256 校验 |
+| 1.7B 权重（可选） | 切到 1.7B 时提示下载 | 约 3.9GB，下完自动刷新启用 |
 
-> **只用云端引擎的用户**：OneAsr 与两个模型权重都不是必需的，装好 Python 和 ffmpeg 即可，再按 5.2 配置你的 API。
-> **本地引擎用户**：以上组件全部在本机，转写不联网。
-> `1.7B` 听写模型是可选档位（约 4.1 GB），需要单独下载；`0.6B` 与 CTC 对齐模型是跑通本地链路的最小组合。两档模型都支持 30 种语言与 22 种中文方言/口音（含闽南语、吴语、粤语等），1.7B 识别精度更高、资源占用更大。
+只用云端引擎的用户不需要本地权重；但**默认本地引擎，音频不出本机**。
+装完之后断网可用：模型就绪判定只读本地文件 + 本地 CLI，从不做网络探测。
+后端零第三方 Python 依赖；目录选择框调用系统自带对话框，不装 GUI 库。
 
 ---
 
-## 3. 环境配置指导
+## 3. 首次准备与下载源
 
-### 3.1 Python（Windows）
+### 3.1 向导在做什么
 
-1. 到 <https://www.python.org/downloads/windows/> 下载 **Python 3.12 的 Windows installer (64-bit)**。
-2. 运行安装程序，**务必勾选 `Add python.exe to PATH`**（这一步决定后面所有命令能不能直接调用）。
-3. 可选：装到所有用户（`Install for all users`），需要管理员权限；不勾则只对当前账户可见，本项目同样可用。
-4. 打开**新的**终端（旧终端不会读到新的 PATH），验证：
+`GET /api/setup` 会逐个核对 `runtime/oneasr/models/` 下文件的大小与 sha256，缺什么下什么。
+`models_manifest.json` 固定了每个文件的 revision / 字节数 / sha256（0.6B 10 个、1.7B 10 个、CTC 6 个）。
+下载器用 HTTP Range 续传、`.part` 临时文件、3 次退避重试、60 秒读超时，校验通过后原子落盘；
+已装好的文件不重下。下载在后台线程跑，关掉浏览器也会继续；关掉黑窗口会停，重开接着下。
 
-```powershell
-python --version
-python -m pip --version
-py -0p        # 可选：仅当安装了官方多版本启动器时才有
-```
+### 3.2 下载源与以后放网盘
 
-**如果输入 `python` 弹出微软商店**：这是 Windows 的「应用执行别名」抢走了命令。
-到 `设置 → 应用 → 高级应用设置 → 应用执行别名`，把 `App Installer - python.exe` 和 `python3.exe` 两个开关关掉；
-或者确保真 Python 的目录排在 PATH 最前面。用 `where python` 检查第一条路径是不是你刚装的那个。
+| 配置键 | 默认 | 用途 |
+|---|---|---|
+| `download_source` | `modelscope` | 改成 `custom` 走自己的镜像 |
+| `download_base_url` | 空 | custom 模式下的镜像前缀，目录结构 `{base}/{模型目录名}/{文件路径}` |
+| `download_url_template` | ModelScope resolve 模板 | 直链模板，留空用默认 |
 
-### 3.2 Python（macOS / Linux）
+**整套 zip 放网盘**：代码零改动 —— 把整包传上去，把分享直链发给用户即可。
+WorkBuddy 侧可安装百度网盘连接器（支持上传 + 创建分享链接），但首版一个连接器都不接，
+也不写死任何网盘地址。若连模型也要走自己的镜像，按上表改两个字段即可。
 
-系统自带 Python 版本通常偏旧或不带 venv，建议用包管理器装 3.12：
+### 3.3 出问题怎么自己处理
 
-```bash
-# macOS
-brew install python@3.12
-
-# Ubuntu / Debian
-sudo apt install python3.12 python3.12-venv
-```
-
-验证 `python3 --version`。本项目后端用 `python3` 或 `python` 启动均可。
-
-### 3.3 ffmpeg
-
-Windows 用户可从 <https://www.gyan.dev/ffmpeg/builds/> 下载 essentials build，
-解压后把 `bin/ffmpeg.exe` 所在目录加进 PATH；macOS 用 `brew install ffmpeg`，Linux 用 `apt install ffmpeg`。
-
-验证：
-
-```bash
-ffmpeg -version
-```
-
-如果不想改 PATH，也可以把 ffmpeg 的完整路径直接填进设置页的 `ffmpeg` 一栏。
-
-### 3.4 OneAsr 与模型
-
-1. 从 <https://github.com/eclipse005/OneAsr/releases> 下载对应平台的便携包并解压。
-2. 便携包自带 ffmpeg，但不含模型权重。用 GUI 的「设置 → 下载模型」，或命令行：
-
-```bash
-oneasr-cli download --model 0.6b
-oneasr-cli status --json
-```
-
-3. `status` 里 `can_start.ok` 为 `true` 即环境就绪。模型默认落在便携包的 `models/` 下；
-   如果你用 `--data-root` 指定了别处，把同一个路径填进本项目设置页的 `oneasr_data_root`。
-
-> 模型较大（合计约 2.8 GB），首次下载需要联网；之后可离线使用。
-> 中国大陆用户模型走 ModelScope 源，速度通常明显快于 GitHub。
-
-### 3.5 一次性自检
-
-```bash
-python --version
-ffmpeg -version
-oneasr-cli status --json
-```
-
-三条都通过就齐了。其实不查也行：双击启动后，页面右上角的「环境就绪 / 环境未就绪」和「高级设置」会直接告诉你缺什么。
+| 情况 | 页面会说什么 | 你怎么做 |
+|---|---|---|
+| 断网 / WiFi 掉了 | 连上网络点重试 | 连上 WiFi 点「重试」，已下的不会重下 |
+| 硬盘不够 | 空间不足，给搬盘指引 | 把整个文件夹搬到有 10GB 空闲的盘，重新双击，不用重装 |
+| 端口被占 | 自动顺延到下一个端口 | 黑窗口和浏览器用的是真实端口，照它显示的打开 |
+| 校验失败 | 某个文件没过 sha256 | 自动删掉那一份重下，不用管 |
+| 第一次就没网 | 需要联网一次 | 找个能上网的地方跑一次，之后永久离线可用 |
 
 ---
 
 ## 4. 安装本项目
 
-1. 把项目下载解压到一个固定文件夹（路径里尽量别带中文和空格）。用 Git 的话：`git clone <your-repo-url>`。
-2. 回到上面 **「0. 先启动起来」**，双击对应的启动文件。
-3. 第一次打开后，展开页面最下面的「高级设置」，把 ffmpeg / OneAsr 的路径填进去，点「保存全部配置」。
+1. 拿到 `ASR_Workbench_v1.1_win64.zip`，解压出 `ASR_Workbench/` 到一个固定文件夹。
+2. 回到上面 **「0. 先启动起来」** 走三步。全过程纯鼠标，不用命令行、不用手填路径。
+3. 想从源码跑：`git clone https://github.com/adrianzeng/asr-workbench.git`，然后 `python start.py`。
 
-`config.json` 不用手动建：第一次保存设置时会自动生成；它已被 `.gitignore` 忽略，里面可以放心写本机的绝对路径。端口也在里面改（默认 `8765`）。
-
-服务只监听 `127.0.0.1`，不对外网开放。命令行启动：`python start.py`（老办法 `python server.py` 也仍然有效）。
+`config.json` 不用手动建：首次启动或首次保存设置时自动生成；它已被 `.gitignore` 忽略。
+**发布版里所有路径都是相对路径**，整个文件夹搬到别的盘、拷到另一台电脑都能直接跑。
+端口在配置里改（默认 `8765`）。服务只监听 `127.0.0.1`，不对外网开放。
 
 ---
 
@@ -144,9 +107,9 @@ oneasr-cli status --json
 
 | 字段 | 说明 | 默认 |
 |---|---|---|
-| `ffmpeg` | ffmpeg 可执行文件名或完整路径 | `ffmpeg` |
-| `oneasr_cli` | `oneasr-cli.exe` / `oneasr-cli` 的完整路径 | 空（必填） |
-| `oneasr_data_root` | 传给 OneAsr `--data-root` 的路径；留空则用 OneAsr 默认 | 空 |
+| `ffmpeg` | ffmpeg 可执行文件；包内已带 | `./runtime/oneasr/bin/ffmpeg.exe` |
+| `oneasr_cli` | OneAsr CLI；包内已带 | `./runtime/oneasr/oneasr-cli.exe` |
+| `oneasr_data_root` | OneAsr 数据根（模型在它下面的 `models/`） | `./runtime/oneasr` |
 | `inbox_dir` | 放待转写音视频的目录，可在「① 选素材」点按钮选（弹出的是资源管理器那种窗口，左侧有桌面 / 下载 / 文档） | `./inbox` |
 | `output_dir` | 产物根目录；每个素材会在下面单独建同名子文件夹 | `./output` |
 | `work_dir` | 中间 WAV 目录；没被输出的产物也归档到这里 | `./work` |
@@ -164,8 +127,12 @@ oneasr-cli status --json
 | `rewrite_api_key` | API Key；只存本机 `config.json`，返回浏览器时脱敏 | 空 |
 | `rewrite_model` | 模型名，如 `qwen3-vl-8b`、`deepseek-chat` | 空 |
 | `port` | 本地服务端口 | `8765` |
+| `download_source` | `modelscope` / `custom` | `modelscope` |
+| `download_base_url` | 自有镜像前缀（custom 时用） | 空 |
+| `download_url_template` | 模型直链模板 | 空（用内置默认） |
+| `auto_download` | 首次启动自动补齐缺失模型 | `true` |
 
-所有目录都可以填绝对路径；留相对路径时以项目根目录为基准。
+**所有目录默认填相对路径，以项目根目录为基准** —— 这样整个文件夹可以任意搬动。确实要指向别处时才填绝对路径（例如把素材目录指到「下载」文件夹）。
 
 ### 产物文件：为什么有一个很大的 JSON
 
@@ -246,7 +213,7 @@ output/
 
 ### 关于混合语言（中英夹杂、粤语+英语……）
 
-1.7B 与 0.6B 听写模型都支持 **30 种语言 + 22 种中文方言**（普通话、英语、粤语、日语、韩语、闽南语、吴语、四川话等），官方明确支持**同一段话里几种语言混着说**（code-switching）以及自动语种判断，不需要预先手动指定语言。所以中英夹杂的稿子能照常出来，不是巧合。
+1.7B 与 0.6B 听写模型都支持 **30 种语言 + 22 种中文方言**（普通话、英语、粤语、日语、韩语、闽南语、吴语、四川话等），官方明确支持**同一段话里几种语言混着说**（code-switching）。但**本工作台不做自动语种判断**：`server.py` 会把「说的哪种话」这一档固定传给听写程序。中英夹杂我们实测过，选「中文」照样能把英文词一起写出来；整段以英文、日文或粤语为主时，请手动切到对应语言，识别会更稳。
 
 粤语+英语、英语+日语、日语+韩语这类组合，涉及的语言都在官方支持清单里；但本项目**只对中英夹杂做过实测**，其它组合没有逐一对着音频验证，不保证效果。遇到识别不准，把「说的哪种话」切成占篇幅最多的那一种再跑一遍。
 
@@ -275,13 +242,6 @@ output/
 
 不管哪种，后端都先用 ffmpeg 抽成 16 kHz 单声道 PCM WAV 再交给听写模型，所以 MP3 不需要任何额外设置。
 
-**命令行单次转写（可选）**：不想开网页，或所在终端限制了后台服务派生子进程时，可直接跑一次：
-
-```bash
-python server.py --once demo.mp4
-```
-
-参数是 `inbox_dir` 里的文件名，产物同样落到 `output_dir/<素材名>/`。这条路径不需要常驻服务。
 
 ---
 
@@ -296,13 +256,13 @@ OneAsr 在部分 Windows 环境下，由自身进程启动 ffmpeg 子进程会�
 
 ## 8. 常见问题
 
-**`找不到 ffmpeg`** — 检查第 3.3 节，或在设置页填完整路径。
+**`找不到 ffmpeg`** — 发布包里自带，检查 `runtime/oneasr/bin/ffmpeg.exe` 是否被误删；从源码跑时才需要自己装或在设置页填路径。
 
-**`找不到 OneAsr CLI`** — `oneasr_cli` 要填可执行文件本身的完整路径，不是它所在的目录。
+**`找不到 OneAsr CLI`** — 发布包里自带 `runtime/oneasr/oneasr-cli.exe`；从源码跑时，`oneasr_cli` 要填可执行文件本身，不是它所在目录。
 
-**`can_start.ok = false`** — 模型没下齐。重新执行 `oneasr-cli download --model 0.6b`，或用 `status --json` 看缺哪个文件。
+**首次准备卡住 / 模型没下齐** — 页面「模型管理」会列出缺哪个文件，点「重试」即可；只补缺的，不会重下 4GB。断网时先连上 WiFi。
 
-**选了 1.7B 后转写失败** — 1.7B 是另一份独立权重（约 4.1 GB），默认便携包不含，需先单独下载。
+**选了 1.7B 后转写失败** — 1.7B 是另一份独立权重（约 3.9GB），切过去时会弹出下载提示；等进度条走完、页面自动刷新后再跑。
 
 **选了云端引擎后转写失败** — 先确认 Base URL 填的是含 `/v1` 的完整地址（本项目会自动在其后拼接 `/audio/transcriptions`）、模型名是服务方提供的听写模型；再检查该服务是否真的兼容 OpenAI 的 audio 接口。报错信息里会带上服务方返回的 HTTP 状态码。
 
@@ -325,23 +285,31 @@ python -c "import server; server.transcribe(server.load_config(), 'demo.mp4')"  
 
 ```
 ASR_Workbench/
-├── 启动工作台.bat        # Windows 双击启动
-├── 启动工作台.command   # macOS 双击启动（Linux 用 bash 跑）
-├── start.py             # 启动器：开浏览器、查端口、拉起服务
-├── jobs.py              # 批量任务队列（标准库线程，顺序执行）
-├── server.py            # 标准库 HTTP 后端
-├── cloud_asr.py         # 云端听写引擎（OpenAI 兼容，标准库实现）
-├── rewrite.py           # 改稿引擎扩展点（预留）
-├── web/                 # 原生 HTML / CSS / JS 前端
-│   └── author-qr.png    # 作者微信二维码（已裁掉名字与说明文字）
-├── inbox/               # 待转写素材（默认）
-├── work/                # 中间 WAV
-├── output/              # 产物根目录（默认）
-│   └── <素材名>/        # 每次转写一个文件夹：.srt / .txt / .timeline.json
-├── config.example.json  # 配置样例
-├── requirements.txt     # 无第三方依赖
-├── LICENSE              # MIT
-└── README.md
+├── 先装 Python（双击）.exe  # 仅发布包里有，第一次装一次
+├── 启动工作台.bat           # Windows 双击启动
+├── 启动工作台.command      # macOS 双击启动（Linux 用 bash 跑）
+├── 使用说明.txt             # 给新手看的图文步骤
+├── THIRD_PARTY_NOTICES.md  # 第三方组件与许可说明
+├── THIRD_PARTY_LICENSES/   # MIT / GPLv3 / BSD-2 / PSF 全文
+├── start.py                # 启动器：开浏览器、查端口、拉起服务
+├── first_run.py            # 首次启动：写全相对配置、建 runtime 目录
+├── downloader.py           # 标准库断点续传下载器
+├── models_runtime.py       # 模型下载状态机
+├── models_manifest.json    # 模型文件清单（revision / size / sha256）
+├── build_release.py        # 打 zip + 全量校验（纯标准库）
+├── jobs.py                 # 批量任务队列
+├── server.py               # 标准库 HTTP 后端
+├── cloud_asr.py / rewrite.py
+├── web/                    # 原生 HTML / CSS / JS 前端
+│   └── author-qr.png       # 作者微信二维码
+├── runtime/oneasr/         # 随包程序（模型不随包，首次下载到这里）
+│   ├── oneasr-cli.exe · oneasr.exe · bin/ffmpeg.exe
+│   └── models/ · output/ · runs/
+├── release_assets/         # 构建输入（Python 安装器，仅维护者有）
+├── dist/                   # 构建产物 zip + SHA256SUMS.txt
+├── inbox/ · work/ · output/   # 素材、中间文件、产物（默认相对路径）
+├── config.example.json · requirements.txt · LICENSE · README.md
+└── config.json             # 本机配置，gitignored，自动生成
 ```
 
 ### 9.1 作者信息
@@ -352,8 +320,26 @@ ASR_Workbench/
 
 ---
 
-## 10. 许可证
+## 10. 打包与托管
+
+`python build_release.py` 产出 `dist/ASR_Workbench_v1.1_win64.zip` 和 `SHA256SUMS.txt`。
+纯标准库、不需要 git。打包前逐条校验，任一失败即中止：
+
+1. `config.example.json` 无盘符 / 无 URL；`.bat` 全 CRLF、`.command` 全 LF；
+2. 随包 ffmpeg 的 `-version` **不含** `--enable-nonfree`（否则不可再分发）；
+3. README 不再把下 OneAsr、敲下载命令、手填路径写成用户必做步骤；
+4. zip 里没有 `config.json`、模型权重、`.part`、嵌套压缩包；`runtime/oneasr/models/` 只有 `.keep`；
+5. 顶层只有 `ASR_Workbench/` 一个目录，`使用说明.txt` 与 `THIRD_PARTY_NOTICES.md` 在根；
+6. 三个 exe 与 Python 安装器逐字节 sha256 与源文件一致。
+
+zip 里是**代码 + 程序 + Python 安装器**，不含模型（首次启动自动下）。
+托管按 3.2：整套 zip 放网盘 / Release / 对象存储，把直链发用户，代码零改动；首版不接任何连接器。
+
+---
+
+## 11. 许可证
 
 MIT。见 [LICENSE](LICENSE)。
 
-第三方组件（ffmpeg、OneAsr、Qwen3-ASR、omniASR-CTC）各有自己的许可证，请分别遵守。
+第三方组件（OneAsr、FFmpeg、imageio-ffmpeg、Python、Qwen3-ASR、omniASR-CTC）各有自己的许可证，**逐项来源、许可全文与再分发依据见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)**。
+模型权重不随包分发，首次启动时由用户自行从 ModelScope 下载。

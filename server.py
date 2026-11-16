@@ -27,6 +27,10 @@ from urllib.parse import parse_qs, urlparse
 import cloud_asr
 import downloader
 import first_run
+
+# Captured before bootstrap() writes config.json, so /api/setup can say
+# whether THIS launch was the first one on this machine.
+_WAS_FIRST_RUN = first_run.is_first_run()
 import jobs
 import models_runtime
 import rewrite
@@ -403,7 +407,7 @@ def setup_report(cfg: dict) -> dict:
     port = int(os.environ.get("ASR_PORT_OVERRIDE") or cfg.get("port", 8765))
     return {
         **check,
-        "first_run": first_run.is_first_run(),
+        "first_run": _WAS_FIRST_RUN,
         "config_exists": CONFIG_PATH.exists(),
         "python_ok": True,
         "offline_ready": check["cli_ok"] and not check["needs_setup"],
