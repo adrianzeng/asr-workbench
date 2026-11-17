@@ -91,7 +91,7 @@
           </div>
           <div class="queue-bar"><div id="queueBarFill"></div></div>
           <div id="queueList" class="queue-list"></div>
-          <p class="note">点「已完成」的那一行，就能看那一份稿子。停止时正在跑的这一个会做完，剩下的跳过。</p>
+          <p class="note">点「已完成」的那一行，就能看那一份稿子。点「停止这一批」会当场掐掉正在转的那一个，已经出来的稿子都留着。</p>
         </div>
       </div>
     </section>
@@ -132,6 +132,7 @@
                   <option value="0.6b">0.6B（轻，CPU 可跑）</option>
                   <option value="1.7b">1.7B（更准 · 需另下约 4GB）</option>
                 </select>
+                <small id="modelNow" class="model-now">正在确认现在用的是哪个模型…</small>
               </label>
               <label class="field local-only"><span>说的哪种话</span>
                 <select id="cfg_language">
@@ -352,7 +353,8 @@
     <div id="dlError" class="dl-error hidden"></div>
     <div id="dlActions" class="dl-actions hidden">
       <button id="dlRetryBtn" class="btn small">重试</button>
-      <button id="dlCancelBtn" class="btn small">停止</button>
+      <button id="dlCancelBtn" class="btn small">停止下载</button>
+      <button id="dlCloseBtn" class="btn small ghost">关掉</button>
     </div>
     <p class="setup-foot">下载期间别关黑色窗口。关了下次打开会接着下，已经下好的不会丢。</p>
   </div>

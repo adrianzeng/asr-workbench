@@ -119,23 +119,32 @@ class ModelManager:
             folder = data_root / "models" / entry["dir"]
             ready_files = 0
             downloaded = 0
+            required = [f for f in entry["files"] if not f.get("optional")]
+            required_ready = 0
             for file in entry["files"]:
                 target = folder / file["path"]
-                if self._ready(target, file["size"], file["sha256"]):
+                ok = self._ready(target, file["size"], file["sha256"])
+                if ok:
                     ready_files += 1
                     downloaded += file["size"]
+                    if not file.get("optional"):
+                        required_ready += 1
                 else:
                     part = target.with_name(target.name + ".part")
                     if part.exists():
                         downloaded += min(part.stat().st_size, file["size"])
-            ready = ready_files == len(entry["files"])
+            # A model is usable once its weights/config/tokenizer are on disk.
+            # README, .gitattributes and the transformers side-cars are nice to
+            # have, but OneAsr runs without them — refusing to start because of
+            # a 2 KB README would send the user on a pointless 4 GB re-download.
+            ready = bool(required) and required_ready == len(required)
             models.append({
                 "id": model_id,
                 "label": entry["label"],
                 "dir": entry["dir"],
                 "ready": ready,
-                "ready_files": ready_files,
-                "file_count": len(entry["files"]),
+                "ready_files": required_ready,
+                "file_count": len(required),
                 "size_bytes": entry["total_bytes"],
                 "downloaded_bytes": downloaded,
                 "remaining_bytes": max(0, entry["total_bytes"] - downloaded),
@@ -163,6 +172,7 @@ class ModelManager:
             message = "环境就绪，可以直接开始转文字。"
         return {
             "models": models,
+            "current_model": str(cfg.get("asr_model", "0.6b")),
             "can_start": can_start,
             "cli_ok": cli_ok,
             "cli_error": reason,

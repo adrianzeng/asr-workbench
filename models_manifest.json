@@ -16,19 +16,22 @@
           "path": ".gitattributes",
           "size": 2129,
           "sha256": "0aefab68978f25d82421f2039b23711121eb624b23fac3376f941aab386c05be",
-          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef",
+          "optional": true
         },
         {
           "path": "README.md",
           "size": 16538,
           "sha256": "742006d0f99ce6475b1c5e7b66e4a2f166cce836dd7ce3d7f20707252859195a",
-          "revision": "005b749cd1566dc579fe0238316087e2fc1945c0"
+          "revision": "005b749cd1566dc579fe0238316087e2fc1945c0",
+          "optional": true
         },
         {
           "path": "chat_template.jinja",
           "size": 1434,
           "sha256": "f50e6b694fbf4a683206e37869990d68333fe95d285730f084c838a34b0d98c2",
-          "revision": "005b749cd1566dc579fe0238316087e2fc1945c0"
+          "revision": "005b749cd1566dc579fe0238316087e2fc1945c0",
+          "optional": true
         },
         {
           "path": "config.json",
@@ -40,13 +43,15 @@
           "path": "configuration.json",
           "size": 63,
           "sha256": "0657e261c850f8d368b4da948a15279089f3484d40c152cc07fb4e9d1727ca3d",
-          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef",
+          "optional": true
         },
         {
           "path": "generation_config.json",
           "size": 165,
           "sha256": "9939fc9388b79bd70757f938b87381e817173d6a6158f5af6506c0b73e775c3c",
-          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef",
+          "optional": true
         },
         {
           "path": "model.safetensors",
@@ -58,7 +63,8 @@
           "path": "processor_config.json",
           "size": 487,
           "sha256": "bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a",
-          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef",
+          "optional": true
         },
         {
           "path": "tokenizer.json",
@@ -70,7 +76,8 @@
           "path": "tokenizer_config.json",
           "size": 998,
           "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11",
-          "revision": "c4650525d0d40f32f1517abe624a89be04386bef"
+          "revision": "c4650525d0d40f32f1517abe624a89be04386bef",
+          "optional": true
         }
       ],
       "total_bytes": 1576381953
@@ -85,19 +92,22 @@
           "path": ".gitattributes",
           "size": 2129,
           "sha256": "0aefab68978f25d82421f2039b23711121eb624b23fac3376f941aab386c05be",
-          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90",
+          "optional": true
         },
         {
           "path": "README.md",
           "size": 16538,
           "sha256": "427b9a6a4a32477e9df8790ef92f5cbcde790ee148ee5dd8c36f77d9556998a2",
-          "revision": "fbdf079ca130130ace97d61dde535b3bebada633"
+          "revision": "fbdf079ca130130ace97d61dde535b3bebada633",
+          "optional": true
         },
         {
           "path": "chat_template.jinja",
           "size": 1434,
           "sha256": "f50e6b694fbf4a683206e37869990d68333fe95d285730f084c838a34b0d98c2",
-          "revision": "fbdf079ca130130ace97d61dde535b3bebada633"
+          "revision": "fbdf079ca130130ace97d61dde535b3bebada633",
+          "optional": true
         },
         {
           "path": "config.json",
@@ -109,13 +119,15 @@
           "path": "configuration.json",
           "size": 63,
           "sha256": "0657e261c850f8d368b4da948a15279089f3484d40c152cc07fb4e9d1727ca3d",
-          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90",
+          "optional": true
         },
         {
           "path": "generation_config.json",
           "size": 165,
           "sha256": "9939fc9388b79bd70757f938b87381e817173d6a6158f5af6506c0b73e775c3c",
-          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90",
+          "optional": true
         },
         {
           "path": "model.safetensors",
@@ -127,7 +139,8 @@
           "path": "processor_config.json",
           "size": 487,
           "sha256": "bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a",
-          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90",
+          "optional": true
         },
         {
           "path": "tokenizer.json",
@@ -139,7 +152,8 @@
           "path": "tokenizer_config.json",
           "size": 998,
           "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11",
-          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90"
+          "revision": "d4c6c75bbebe9a9730445a33b6cc105dd9873c90",
+          "optional": true
         }
       ],
       "total_bytes": 4087646946
@@ -172,7 +186,8 @@
           "path": "tokenizer_config.json",
           "size": 233,
           "sha256": "413ddc3802665f3b11a96161b565e38644750fdb592c325564ddd75d6cf6b8bf",
-          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052"
+          "revision": "ecd67cd0a814c13b3a0e9314c4a12037f60bc052",
+          "optional": true
         },
         {
           "path": "vocab.json",

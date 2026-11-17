@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -48,6 +49,52 @@ MEDIA_SUFFIXES = frozenset(
     ".wav .mp3 .flac .m4a .aac .ogg .opus .wma "
     ".mp4 .mkv .mov .webm .avi .flv .ts .m4v .mpeg .mpg .wmv .3gp".split()
 )
+
+# ——— interruptible child processes ———
+# ffmpeg / OneAsr run as child processes. "停止这一批" must actually kill the
+# one that is running (a 20-minute video would otherwise keep the button dead
+# for 20 minutes), so every child is registered here while it lives.
+_PROC_LOCK = threading.Lock()
+_LIVE_PROCS: set[subprocess.Popen] = set()
+
+
+def _run_capture(cmd: list[str]) -> subprocess.CompletedProcess:
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", errors="replace",
+    )
+    with _PROC_LOCK:
+        _LIVE_PROCS.add(proc)
+    try:
+        out, err = proc.communicate()
+    finally:
+        with _PROC_LOCK:
+            _LIVE_PROCS.discard(proc)
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
+def abort_running_tools() -> int:
+    """Kill whatever child is running right now. Returns how many were hit."""
+    with _PROC_LOCK:
+        procs = list(_LIVE_PROCS)
+    killed = 0
+    for proc in procs:
+        if proc.poll() is not None:
+            continue
+        try:
+            # /T kills the whole tree: the CLI may spawn helpers of its own.
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True, timeout=15,
+            )
+        except Exception:
+            pass
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        killed += 1
+    return killed
 
 DEFAULTS = {
     # V1.1: everything the tool needs lives inside this one folder.
@@ -384,6 +431,23 @@ def park_unwanted(job_dir: Path, work: Path, stem: str, wanted: dict) -> str:
     return str(parked_dir) if moved else ""
 
 
+def model_info(model_id: str) -> dict:
+    """Label and on-disk folder for an ASR model id, straight from the manifest.
+
+    The UI shows this next to a finished transcript so the user can see which
+    model actually ran, instead of trusting the dropdown.
+    """
+    try:
+        entry = downloader.load_manifest()["models"].get(model_id, {})
+    except Exception:
+        entry = {}
+    return {
+        "id": model_id,
+        "label": str(entry.get("label") or model_id),
+        "dir": str(entry.get("dir") or ""),
+    }
+
+
 def models_ready_quick(cfg: dict) -> bool:
     """Cheap readiness check (size only) for the frequently polled status API."""
     try:
@@ -393,6 +457,8 @@ def models_ready_quick(cfg: dict) -> bool:
             entry = manifest["models"][key]
             folder = root / "models" / entry["dir"]
             for file in entry["files"]:
+                if file.get("optional"):
+                    continue      # README / side-car files: not needed to run
                 path = folder / file["path"]
                 if not path.is_file() or path.stat().st_size != file["size"]:
                     return False
@@ -487,10 +553,9 @@ def transcribe(cfg: dict, name: str) -> dict:
     # compliant WAV directly instead of spawning its own ffmpeg, which avoids
     # "os error 5" on some Windows setups; the cloud engine uploads this WAV
     # as a plain, predictable payload. Transcription output is unchanged.
-    run = subprocess.run(
+    run = _run_capture(
         [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(src),
-         "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", str(wav)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+         "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", str(wav)]
     )
     if run.returncode != 0:
         raise RuntimeError(f"ffmpeg 转码失败：{run.stderr.strip()[:800]}")
@@ -547,9 +612,7 @@ def transcribe(cfg: dict, name: str) -> dict:
         cmd += ["--data-root", str(resolve_path(data_root))]
 
     started = time.time()
-    run = subprocess.run(
-        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
-    )
+    run = _run_capture(cmd)
     elapsed = round(time.time() - started, 1)
     if run.returncode != 0:
         raise RuntimeError(f"转写失败：{(run.stderr or run.stdout).strip()[-1200:]}")
@@ -572,6 +635,7 @@ def transcribe(cfg: dict, name: str) -> dict:
         "srt_path": str(srt_path) if srt_ready else "",
         "txt_path": str(txt_path) if txt_ready else "",
         "engine": "local",
+        "asr_model": model_info(str(cfg.get("asr_model", "0.6b"))),
         "output_mode": mode,
         "parked": parked,
         "rewrite": rewrite.rewrite_status(cfg),
@@ -581,7 +645,7 @@ def transcribe(cfg: dict, name: str) -> dict:
 
 # One queue per server process. Config is snapshotted when a batch is submitted,
 # so changing settings mid-run cannot desynchronise files in the same batch.
-JOB_MANAGER = jobs.JobManager(transcribe, load_config)
+JOB_MANAGER = jobs.JobManager(transcribe, load_config, on_cancel=abort_running_tools)
 MODEL_MANAGER = models_runtime.ModelManager(load_config, save_config)
 
 

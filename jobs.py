@@ -29,9 +29,14 @@ def _item(name: str) -> dict:
 
 
 class JobManager:
-    def __init__(self, worker: Callable, config_loader: Callable):
+    def __init__(self, worker: Callable, config_loader: Callable,
+                 on_cancel: Callable | None = None):
         self._worker = worker
         self._config_loader = config_loader
+        # Called from the HTTP thread when the user presses "停止这一批".
+        # server.py passes a function that kills the ffmpeg / CLI child, so the
+        # file being transcribed stops in a second instead of minutes.
+        self._on_cancel = on_cancel
         self._lock = threading.Lock()
         self._cancel = threading.Event()
         self._state = self._blank()
@@ -40,6 +45,7 @@ class JobManager:
     def _blank() -> dict:
         return {
             "running": False,
+            "cancelling": False,
             "cancelled": False,
             "started_at": 0,
             "finished_at": 0,
@@ -74,11 +80,25 @@ class JobManager:
         return self.snapshot(), ""
 
     def cancel(self) -> bool:
+        """Stop the batch now: queued files are dropped, the running one is killed.
+
+        Returns False when nothing is running (the UI uses that to refresh).
+        """
         with self._lock:
             if not self._state["running"]:
                 return False
-        # Let the file currently being transcribed finish; skip the rest.
+            self._state["cancelling"] = True
+            # Anything still queued is skipped immediately, so the list shows
+            # "已跳过" instead of dangling "排队中" for the next half minute.
+            for item in self._state["items"]:
+                if item["status"] == "pending":
+                    item["status"] = "cancelled"
         self._cancel.set()
+        if self._on_cancel:
+            try:
+                self._on_cancel()
+            except Exception:
+                pass
         return True
 
     def result(self, name: str) -> dict | None:
@@ -146,13 +166,20 @@ class JobManager:
                 with self._lock:
                     self._state["done"] += 1
             except Exception as exc:
-                self._update(index, status="error", error=str(exc),
-                             elapsed=round(time.time() - started, 1))
-                with self._lock:
-                    self._state["failed"] += 1
+                if self._cancel.is_set():
+                    # Killing the child surfaces here as a non-zero exit; that
+                    # is a stop, not a failure.
+                    self._update(index, status="cancelled",
+                                 elapsed=round(time.time() - started, 1))
+                else:
+                    self._update(index, status="error", error=str(exc),
+                                 elapsed=round(time.time() - started, 1))
+                    with self._lock:
+                        self._state["failed"] += 1
 
         with self._lock:
             self._state["running"] = False
+            self._state["cancelling"] = False
             self._state["current"] = ""
             self._state["finished_at"] = time.time()
             self._state["cancelled"] = self._cancel.is_set()
@@ -165,4 +192,5 @@ class JobManager:
                     item["error"] = message
                     self._state["failed"] += 1
             self._state["running"] = False
+            self._state["cancelling"] = False
             self._state["finished_at"] = time.time()

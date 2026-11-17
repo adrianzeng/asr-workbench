@@ -29,6 +29,7 @@ async function api(path, options) {
 const selectedFiles = new Set();
 let pollTimer = null;
 let batchRunning = false;
+let stoppingBatch = false;   // user pressed 停止这一批, waiting for the child to die
 let lastDoneCount = -1;
 let viewingName = null;   // null = keep showing the newest finished draft
 
@@ -208,7 +209,9 @@ function showResult(r) {
   $('jobDir').textContent = r.job_dir || '—';
   $('engineInfo').textContent = r.engine === 'cloud'
     ? `云端 · ${r.cloud_provider || ''}${r.timestamp_precision === 'whole_file' ? ' · 整段时间轴' : ''}`
-    : '本地模型';
+    : (r.asr_model && r.asr_model.label
+      ? `本地 · ${r.asr_model.label}（${r.asr_model.dir}）`
+      : '本地模型');
   $('srtPath').textContent = r.srt_path || (r.output_mode === 'txt' ? '按设置未输出' : '—');
   $('txtPath').textContent = r.txt_path || '—';
   $('elapsed').textContent = (r.elapsed ?? '—') + ' 秒';
@@ -231,7 +234,10 @@ function renderQueue(s) {
     : (s.cancelled ? `已停止 · 完成 ${s.done} 个`
       : `这一批跑完了 · 完成 ${s.done} 个${s.failed ? ` · 失败 ${s.failed} 个` : ''}`);
   $('queueBarFill').style.width = (s.total ? (settled / s.total * 100) : 0) + '%';
-  $('cancelJobsBtn').disabled = !s.running;
+  const stopBtn = $('cancelJobsBtn');
+  const halting = s.running && (s.cancelling || stoppingBatch);
+  stopBtn.textContent = halting ? '正在停止…' : '停止这一批';
+  stopBtn.disabled = !s.running || halting;
   $('queueList').innerHTML = s.items.map((i) => {
     const state = i.status === 'done' ? `完成 ${i.elapsed}s`
       : i.status === 'error' ? `失败：${escapeHtml(i.error || '')}`
@@ -275,8 +281,11 @@ async function pollJobs() {
   }
   if (!s.running) {
     stopPolling();
+    stoppingBatch = false;
     setProgress(s.cancelled ? '已停止，做完的稿子都还在'
       : '这一批跑完了！点列表里「已完成」的那行看稿子', false, true);
+  } else if (s.cancelling || stoppingBatch) {
+    setProgress('正在停止这一批…已经出来的稿子都留着', true);
   } else {
     setProgress(`排队转写中 · 已完成 ${s.done} / ${s.total} 个，关掉浏览器也会继续跑`, true);
   }
@@ -352,14 +361,42 @@ function fmtDuration(sec) {
 async function renderModelList() {
   try {
     const d = await api('/api/models');
-    $('modelList').innerHTML = d.models.map((m) =>
-      `<div class="model-row ${m.ready ? '' : 'missing'}">` +
-      `<span class="qdot" style="background:${m.ready ? 'var(--ok)' : '#d9c8bb'}"></span>` +
-      `<b>${escapeHtml(m.label)}</b>` +
-      `<span class="mstate">${m.ready ? '已就绪' : '需补 ' + fmtBytes(m.remaining_bytes ?? m.size_bytes)}</span></div>`
-    ).join('');
+    $('modelList').innerHTML = d.models.map((m) => {
+      const isCurrent = m.id === d.current_model;
+      const state = m.ready
+        ? (isCurrent ? '已就绪 · 正在用' : '已就绪')
+        : '需补 ' + fmtBytes(m.remaining_bytes ?? m.size_bytes);
+      const action = m.ready ? '' :
+        `<button class="btn tiny dl-one" data-model="${escapeHtml(m.id)}">下载</button>`;
+      return `<div class="model-row ${m.ready ? '' : 'missing'}${isCurrent ? ' current' : ''}">` +
+        `<span class="qdot" style="background:${m.ready ? 'var(--ok)' : '#d9c8bb'}"></span>` +
+        `<b>${escapeHtml(m.label)}</b>` +
+        `<span class="mstate">${state}</span>` +
+        action + '</div>';
+    }).join('');
+    $('modelList').querySelectorAll('.dl-one').forEach((btn) => {
+      btn.addEventListener('click', () => startModelDownload([btn.dataset.model], false));
+    });
   } catch (err) {
     $('modelList').textContent = '检查失败：' + err.message;
+  }
+}
+
+// Says out loud which model the next transcription will actually load, so the
+// dropdown showing "1.7B" is backed by the files on disk.
+async function refreshModelNow() {
+  const el = $('modelNow');
+  if (!el) return;
+  try {
+    const d = await api('/api/models');
+    const cur = d.models.find((m) => m.id === d.current_model);
+    if (!cur) { el.textContent = ''; return; }
+    el.textContent = cur.ready
+      ? `现在会用：${cur.label} · ${cur.dir}`
+      : `选的 ${cur.label} 还没下完，转写前要先下载`;
+    el.classList.toggle('warn', !cur.ready);
+  } catch (err) {
+    el.textContent = '';
   }
 }
 
@@ -381,7 +418,9 @@ async function startModelDownload(models, activate) {
     activate ? '这个模型还没下载' : '第一次用，先准备一下',
     activate
       ? '1.7B 更准，但还要再下约 4 GB。下完会自动刷新并切过去。'
-      : '要下载约 2.8 GB 的听写模型（国内源，只此一次）。下完之后断网也能用。'
+      : (models.length === 1
+        ? '这个模型还没下完。已经下好的部分不会重下，中途可以点「停止下载」。'
+        : '要下载约 2.8 GB 的听写模型（国内源，只此一次）。下完之后断网也能用。')
   );
   try {
     await api('/api/models/download', {
@@ -424,6 +463,17 @@ function renderDownload(s) {
     return `<div class="dl-file ${ok ? 'done' : ''}"><span>${ok ? '✓' : '·'}</span>` +
            `<b>${escapeHtml(f.model)}</b><span>${escapeHtml(f.path)}</span></div>`;
   }).join('');
+  const busy = ['checking', 'downloading', 'verifying'].includes(s.state);
+  if (busy) {
+    // While bytes are moving the useful actions are "stop" and "close" —
+    // closing just hides the window, the download keeps running in the server.
+    $('dlActions').classList.remove('hidden');
+    $('dlRetryBtn').classList.add('hidden');
+    $('dlCloseBtn').classList.remove('hidden');
+    $('dlCancelBtn').classList.remove('hidden');
+    $('dlStartBtn').disabled = true;
+    $('dlStartBtn').textContent = '下载中…';
+  }
 }
 
 async function pollModels() {
@@ -440,11 +490,16 @@ async function pollModels() {
     $('dlActions').classList.add('hidden');
     setTimeout(() => location.reload(), 900);
   } else {
+    const stopped = s.state === 'cancelled';
     $('dlStartBtn').disabled = false;
-    $('dlStartBtn').textContent = '重试';
+    $('dlStartBtn').textContent = stopped ? '继续下载' : '重试';
     $('dlError').textContent = s.message || '下载没成功，点「重试」再试一次。';
     $('dlError').classList.remove('hidden');
     $('dlActions').classList.remove('hidden');
+    $('dlRetryBtn').classList.remove('hidden');
+    $('dlRetryBtn').textContent = stopped ? '继续下载' : '重试';
+    $('dlCancelBtn').classList.add('hidden');
+    $('dlCloseBtn').classList.remove('hidden');
   }
 }
 
@@ -487,10 +542,20 @@ async function restoreModels() {
 $('dlStartBtn').addEventListener('click', () => startModelDownload(pendingModels, pendingActivate));
 $('dlRetryBtn').addEventListener('click', () => startModelDownload(pendingModels, pendingActivate));
 $('dlCancelBtn').addEventListener('click', async () => {
+  $('dlCancelBtn').disabled = true;
+  $('dlCancelBtn').textContent = '正在停止…';
   try {
     await api('/api/models/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     if (pendingActivate) $('cfg_asr_model').value = previousAsrModel;
   } catch (err) { /* ignore */ }
+  finally {
+    $('dlCancelBtn').disabled = false;
+    $('dlCancelBtn').textContent = '停止下载';
+  }
+});
+$('dlCloseBtn').addEventListener('click', () => {
+  $('setupModal').classList.add('hidden');
+  renderModelList();
 });
 $('modelRecheckBtn').addEventListener('click', renderModelList);
 ['cfg_download_source', 'cfg_download_base_url'].forEach((id) => {
@@ -522,10 +587,24 @@ $('clearSelBtn').addEventListener('click', () => {
 });
 
 $('cancelJobsBtn').addEventListener('click', async () => {
+  if (stoppingBatch) return;
+  stoppingBatch = true;
+  $('cancelJobsBtn').disabled = true;
+  $('cancelJobsBtn').textContent = '正在停止…';
+  setProgress('正在停止这一批…', true);
   try {
-    await api('/api/jobs/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    setProgress('正在收尾：当前这个做完就停', true);
-  } catch (err) { setProgress('停止没成功：' + err.message, false); }
+    const r = await api('/api/jobs/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!r.ok) {
+      // Nothing was running any more (it probably just finished).
+      stoppingBatch = false;
+      pollJobs();
+    }
+  } catch (err) {
+    stoppingBatch = false;
+    $('cancelJobsBtn').disabled = false;
+    $('cancelJobsBtn').textContent = '停止这一批';
+    setProgress('停止没成功：' + err.message, false);
+  }
 });
 
 $('pickInbox').addEventListener('click', () => pickFolder('inbox', 'cfg_inbox_dir', async () => {
@@ -598,8 +677,12 @@ $('cfg_asr_model').addEventListener('change', async () => {
     } catch (err) { /* 查不到就照常保存 */ }
   }
   previousAsrModel = $('cfg_asr_model').value;
-  try { await saveConfig(); setProgress('设置已保存', false); }
-  catch (err) { setProgress('保存失败：' + err.message, false); }
+  try {
+    await saveConfig();
+    setProgress('设置已保存', false);
+    refreshModelNow();
+    renderModelList();
+  } catch (err) { setProgress('保存失败：' + err.message, false); }
 });
 
 ['cfg_backend', 'cfg_language', 'cfg_aligner'].forEach((id) => {
@@ -677,6 +760,7 @@ document.addEventListener('keydown', (e) => {
     await loadRewriteState();
     await restoreJobs();
     await renderModelList();
+    await refreshModelNow();
     await restoreModels();
     await setupCheck();
   } catch (err) {
